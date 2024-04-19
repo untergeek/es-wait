@@ -57,7 +57,7 @@ class Waiter:
             self.logger.debug('Elapsed time: %s seconds', elapsed)
             response = self.check
             if response:
-                self.logger.debug('%s finished executing', self.ident)
+                self.logger.debug('%s finished executing', self.checkid)
                 result = True
                 break
             # Not success, and reached timeout (if defined)
