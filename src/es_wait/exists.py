@@ -8,7 +8,7 @@ from .base import Waiter
 
 class Exists(Waiter):
     """Class Definition"""
-    ACTIONS = t.Optional[str] = None
+    ACTIONS: t.Optional[str] = None
     IDX_OR_DS = t.Literal['index', 'datastream', 'idx', 'ds']
     TEMPLATE = t.Literal['index_template', 'template', 'tmpl']
     COMPONENT = t.Literal['component_template', 'component', 'comp']

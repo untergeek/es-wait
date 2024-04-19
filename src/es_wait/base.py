@@ -7,7 +7,7 @@ from elasticsearch8 import Elasticsearch
 
 class Waiter:
     """Class Definition"""
-    ACTIONS = t.Literal['any', 'listed', 'actions']
+    ACTIONS = ['any', 'listed', 'actions']
     def __init__(
             self,
             client: Elasticsearch,

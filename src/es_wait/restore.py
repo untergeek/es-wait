@@ -7,11 +7,11 @@ from .base import Waiter
 # pylint: disable=missing-docstring,too-many-arguments
 
 class Restore(Waiter):
-    ACTIONS = t.Literal['restore']
+    ACTIONS: t.Optional[str] = None
     def __init__(
             self,
             client: Elasticsearch,
-            action: t.Literal['restore'] = None,
+            action: t.Optional[str] = None,
             pause: float = 9,
             timeout: float = -1,
             index_list: t.Sequence[str] = None,

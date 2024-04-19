@@ -7,11 +7,11 @@ from .base import Waiter
 # pylint: disable=missing-docstring,too-many-arguments
 
 class Snapshot(Waiter):
-    ACTIONS = t.Literal['snapshot']
+    ACTIONS: t.Optional[str] = None
     def __init__(
             self,
             client: Elasticsearch,
-            action: t.Literal['snapshot'] = None,
+            action: t.Optional[str] = None,
             pause: float = 9,
             timeout: float = -1,
             snapshot: str = None,

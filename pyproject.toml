@@ -195,3 +195,7 @@ dependencies = [
     "pytest >=7.2.1",
     "pytest-cov",
 ]
+
+[publish.index.repos.main]
+url = "https://upload.pypi.org/legacy/"
+username = "__token__"

@@ -1,5 +1,5 @@
 """Top-level init file"""
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 from .exists import Exists
 from .health import Health
 from .relocate import Relocate
