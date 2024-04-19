@@ -1,0 +1,78 @@
+"""Snapshot Restore Check"""
+import typing as t
+import logging
+from elasticsearch8 import Elasticsearch
+from .base import Waiter
+
+# pylint: disable=missing-docstring,too-many-arguments
+
+class Restore(Waiter):
+    ACTIONS = t.Literal['restore']
+    def __init__(
+            self,
+            client: Elasticsearch,
+            action: t.Literal['restore'] = None,
+            pause: float = 9,
+            timeout: float = -1,
+            index_list: t.Sequence[str] = None,
+        ) -> None:
+        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
+        self.logger = logging.getLogger('es_wait.Snapshot')
+        self.empty_check(index_list)
+        self.index_list = index_list
+        self.checkid = 'check for completion of index_list restoration from snapshot'
+
+    @property
+    def check(self) -> bool:
+        """
+        Calls `client.indices.` :py:meth:`~.elasticsearch.client.IndicesClient.recovery`
+        with a list of indices to check for complete recovery.  It will return ``True`` if recovery
+        of those indices is complete, and ``False`` otherwise.  It is designed to fail fast: if a
+        single shard is encountered that is still recovering (not in ``DONE`` stage), it will
+        immediately return ``False``, rather than complete iterating over the rest of the response.
+        """
+        response = {}
+        for chunk in self.index_list_chunks:
+            chunk_response = self.get_recovery(chunk)
+            if chunk_response == {}:
+                self.logger.debug('_recovery API returned an empty response. Trying again.')
+                return False
+            response.update(chunk_response)
+        self.logger.debug('Provided indices: %s', self.index_list)
+        self.logger.debug('Found indices: %s', list(response.keys()))
+        for index,data in response.items():
+            for shard in data['shards']:
+                stage = shard['stage']
+                if stage != 'DONE':
+                    print(f'Index {index} is still in stage {stage}')
+
+        # If we've gotten here, all of the indices have recovered
+        return True
+
+    @property
+    def index_list_chunks(self) -> t.Sequence[t.Sequence[t.AnyStr]]:
+        """
+        This utility chunks very large index lists into 3KB chunks.
+        It measures the size as a csv string, then converts back into a list for the return value.
+        """
+        chunks = []
+        chunk = ""
+        for index in self.index_list:
+            if len(chunk) < 3072:
+                if not chunk:
+                    chunk = index
+                else:
+                    chunk += "," + index
+            else:
+                chunks.append(chunk.split(','))
+                chunk = index
+        chunks.append(chunk.split(','))
+        return chunks
+
+    def get_recovery(self, chunk: t.Sequence[str]) -> t.Dict:
+        try:
+            chunk_response = self.client.indices.recovery(index=chunk, human=True)
+        except Exception as err:
+            msg = f'Unable to obtain recovery information for specified indices. Error: {err}'
+            raise ValueError(msg) from err
+        return chunk_response
