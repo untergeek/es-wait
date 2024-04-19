@@ -8,8 +8,8 @@ from .base import Waiter
 
 class Health(Waiter):
     ACTIONS = ['allocation', 'cluster_routing', 'mount', 'replicas', 'shrink']
-    RELO_ACTIONS = t.Literal['allocation', 'cluster_routing']
-    STATUS_ACTIONS = t.Literal['mount', 'replicas', 'shrink']
+    RELO_ACTIONS = ['allocation', 'cluster_routing']
+    STATUS_ACTIONS = ['mount', 'replicas', 'shrink']
     RELO_ARGS = {'relocating_shards': 0}
     STATUS_ARGS = {'status': 'green'}
     def __init__(

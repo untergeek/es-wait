@@ -9,9 +9,9 @@ from .base import Waiter
 class Exists(Waiter):
     """Class Definition"""
     ACTIONS: t.Optional[str] = None
-    IDX_OR_DS = t.Literal['index', 'datastream', 'idx', 'ds']
-    TEMPLATE = t.Literal['index_template', 'template', 'tmpl']
-    COMPONENT = t.Literal['component_template', 'component', 'comp']
+    IDX_OR_DS = ['index', 'datastream', 'idx', 'ds']
+    TEMPLATE = ['index_template', 'template', 'tmpl']
+    COMPONENT = ['component_template', 'component', 'comp']
     def __init__(
             self,
             client: Elasticsearch,
