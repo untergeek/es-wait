@@ -18,8 +18,8 @@ class Relocate(Waiter):
         ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Health')
-        self.empty_check(name)
         self.name = name
+        self.empty_check(name)
         self.checkid = f'check for the {self.name} index relocation process to complete'
 
     @property

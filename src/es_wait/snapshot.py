@@ -19,10 +19,10 @@ class Snapshot(Waiter):
         ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Snapshot')
-        self.empty_check(snapshot)
-        self.empty_check(repository)
         self.snapshot = snapshot
         self.repository = repository
+        self.empty_check(snapshot)
+        self.empty_check(repository)
         self.checkid = f'check for snapshot {self.snapshot} completion'
 
     @property

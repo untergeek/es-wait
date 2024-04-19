@@ -18,8 +18,8 @@ class Restore(Waiter):
         ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Snapshot')
-        self.empty_check(index_list)
         self.index_list = index_list
+        self.empty_check(index_list)
         self.checkid = 'check for completion of index_list restoration from snapshot'
 
     @property

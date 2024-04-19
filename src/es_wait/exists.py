@@ -23,10 +23,10 @@ class Exists(Waiter):
         ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Exists')
-        self.empty_check('name')
-        self.empty_check('kind')
         self.name = name
         self.kind = kind
+        self.empty_check('name')
+        self.empty_check('kind')
         self.checkid = f'check for {self.kindmap} {name} to exist'
 
     @property

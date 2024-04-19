@@ -20,8 +20,8 @@ class Task(Waiter):
         ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Health')
-        self.empty_check(task_id)
         self.task_id = task_id
+        self.empty_check(task_id)
         self.task_data = None
         self.task = None
         self.checkid = f'check for the {self.action} task to complete'
