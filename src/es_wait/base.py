@@ -55,7 +55,10 @@ class Waiter:
         self.logger.debug('Only logging every %s seconds', frequency)
         while True:
             elapsed = int((self.now - start_time).total_seconds())
-            loggit = elapsed % frequency == 0 # Only log every frequency seconds
+            if elapsed == 0:
+                loggit = False
+            else:
+                loggit = elapsed % frequency == 0 # Only log every frequency seconds
             response = self.check
             # Successfully completed task.
             if response:
