@@ -47,18 +47,22 @@ class Waiter:
     def setup(self) -> None:
         """Setup the waiter"""
 
-    def wait_for_it(self) -> None:
+    def wait_for_it(self, frequency: int = 5) -> None:
         """Do the actual waiting"""
         # Now with this mapped, we can perform the wait as indicated.
         start_time = self.now
-        result = False
+        success = False
+        self.logger.debug('Only logging every %s seconds', frequency)
         while True:
             elapsed = int((self.now - start_time).total_seconds())
-            self.logger.debug('Elapsed time: %s seconds', elapsed)
+            loggit = elapsed % frequency == 0 # Only log every frequency seconds
             response = self.check
+            # Successfully completed task.
             if response:
                 self.logger.debug('%s finished executing', self.checkid)
-                result = True
+                total = f'{(self.now - start_time).tota_seconds():.2f}'
+                self.logger.debug('Elapsed time: %s seconds', total)
+                success = True
                 break
             # Not success, and reached timeout (if defined)
             if (self.timeout != -1) and (elapsed >= self.timeout):
@@ -66,14 +70,15 @@ class Waiter:
                 self.logger.error(msg)
                 break
             # Not timed out and not yet success, so we wait.
-            msg = (
-                f'The {self.checkid} is not yet complete. {elapsed} total seconds have elapsed. '
-                f'Waiting {self.pause} seconds before checking again.'
-            )
-            self.logger.debug(msg)
-            sleep(self.pause)
+            if loggit:
+                msg = (
+                    f'The {self.checkid} is not yet complete. {elapsed} total seconds have '
+                    f'elapsed. Waiting {self.pause} seconds before checking again.'
+                )
+                self.logger.debug(msg)
+            sleep(self.pause) # Actual wait here
 
-        if not result:
+        if not success:
             msg = (
                 f'The {self.checkid} failed to complete in the '
                 f'timeout period of {self.timeout} seconds'
