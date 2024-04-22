@@ -60,7 +60,7 @@ class Waiter:
             # Successfully completed task.
             if response:
                 self.logger.debug('%s finished executing', self.checkid)
-                total = f'{(self.now - start_time).tota_seconds():.2f}'
+                total = f'{(self.now - start_time).total_seconds():.2f}'
                 self.logger.debug('Elapsed time: %s seconds', total)
                 success = True
                 break
