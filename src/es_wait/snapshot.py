@@ -21,8 +21,8 @@ class Snapshot(Waiter):
         self.logger = logging.getLogger('es_wait.Snapshot')
         self.snapshot = snapshot
         self.repository = repository
-        self.empty_check(snapshot)
-        self.empty_check(repository)
+        self.empty_check('snapshot')
+        self.empty_check('repository')
         self.checkid = f'check for snapshot {self.snapshot} completion'
 
     @property

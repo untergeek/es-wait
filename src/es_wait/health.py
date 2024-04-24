@@ -22,7 +22,7 @@ class Health(Waiter):
             ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Health')
-        self.empty_check(action)
+        self.empty_check('action')
         self.checkid = self.getcheckid
 
     @property
