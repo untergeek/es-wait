@@ -36,7 +36,6 @@ class Snapshot(Waiter):
         message.
         """
         state = self.snapstate['snapshots'][0]['state']
-        self.logger.debug('Snapshot state = %s', state)
         retval = True
         if state == 'IN_PROGRESS':
             self.logger.debug('Snapshot %s still in progress.', self.snapshot)
@@ -50,7 +49,6 @@ class Snapshot(Waiter):
         result = {}
         try:
             result = self.client.snapshot.get(repository=self.repository, snapshot=self.snapshot)
-            self.logger.debug('RESULT: %s', result)
         except Exception as err:
             raise ValueError(
                 f'Unable to obtain information for snapshot "{self.snapshot}" in repository '
