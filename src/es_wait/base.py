@@ -76,7 +76,7 @@ class Waiter:
             if loggit:
                 msg = (
                     f'The {self.checkid} is not yet complete. {elapsed} total seconds have '
-                    f'elapsed. Waiting {self.pause} seconds before checking again.'
+                    f'elapsed. Pausing {self.pause} seconds between checks.'
                 )
                 self.logger.debug(msg)
             sleep(self.pause) # Actual wait here

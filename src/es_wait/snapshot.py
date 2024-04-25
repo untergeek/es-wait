@@ -38,7 +38,6 @@ class Snapshot(Waiter):
         state = self.snapstate['snapshots'][0]['state']
         retval = True
         if state == 'IN_PROGRESS':
-            self.logger.debug('Snapshot %s still in progress.', self.snapshot)
             retval = False
         if retval:
             self.log_completion(state)
