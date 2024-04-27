@@ -52,7 +52,7 @@ class Exists(Waiter):
             },
             'FAIL': {'func': False, 'kwargs': {}},
         }
-        return doit[self.kindmap]['func'](**doit[self.kindmap]['kwargs'])
+        return bool(doit[self.kindmap]['func'](**doit[self.kindmap]['kwargs']))
 
     @property
     def kindmap(
