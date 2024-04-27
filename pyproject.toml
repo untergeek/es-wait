@@ -101,9 +101,10 @@ all = [
 ]
 
 [tool.black]
-target-version = ["py38"]
-line-length = 120
+target-version = ['py38']
+line-length = 88
 skip-string-normalization = true
+include = '\.pyi?$'
 
 [tool.ruff]
 target-version = "py38"

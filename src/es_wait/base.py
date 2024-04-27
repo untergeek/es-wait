@@ -1,20 +1,24 @@
 """Base Waiter Class"""
+
 import typing as t
 import logging
 from time import sleep
 from datetime import datetime, timezone
 from elasticsearch8 import Elasticsearch
 
+
 class Waiter:
     """Class Definition"""
+
     ACTIONS = ['any', 'listed', 'actions']
+
     def __init__(
-            self,
-            client: Elasticsearch,
-            action: t.Union[str, t.Sequence[str]] = None,
-            pause: float = 9,    # The delay between checks
-            timeout: float = -1, # How long is too long
-        ) -> None:
+        self,
+        client: Elasticsearch,
+        action: str = '',
+        pause: float = 9,  # The delay between checks
+        timeout: float = -1,  # How long is too long
+    ) -> None:
         self.logger = logging.getLogger('es_wait.Base')
         self.client = client
         self.action = action
@@ -58,7 +62,7 @@ class Waiter:
             if elapsed == 0:
                 loggit = False
             else:
-                loggit = elapsed % frequency == 0 # Only log every frequency seconds
+                loggit = elapsed % frequency == 0  # Only frequency seconds
             response = self.check
             # Successfully completed task.
             if response:
@@ -69,22 +73,25 @@ class Waiter:
                 break
             # Not success, and reached timeout (if defined)
             if (self.timeout != -1) and (elapsed >= self.timeout):
-                msg = f'The {self.checkid} did not complete within {self.timeout} seconds.'
+                msg = (
+                    f'The {self.checkid} did not complete within {self.timeout} '
+                    f'seconds.'
+                )
                 self.logger.error(msg)
                 break
             # Not timed out and not yet success, so we wait.
             if loggit:
                 msg = (
-                    f'The {self.checkid} is not yet complete. {elapsed} total seconds have '
-                    f'elapsed. Pausing {self.pause} seconds between checks.'
+                    f'The {self.checkid} is not yet complete. {elapsed} total seconds '
+                    f'have elapsed. Pausing {self.pause} seconds between checks.'
                 )
                 self.logger.debug(msg)
-            sleep(self.pause) # Actual wait here
+            sleep(self.pause)  # Actual wait here
 
         if not success:
             msg = (
-                f'The {self.checkid} failed to complete in the '
-                f'timeout period of {self.timeout} seconds'
+                f'The {self.checkid} failed to complete in the timeout period of '
+                f'{self.timeout} seconds'
             )
             self.logger.error(msg)
             raise TimeoutError(msg)

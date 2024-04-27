@@ -1,4 +1,5 @@
 """Health Check"""
+
 import typing as t
 import logging
 from elasticsearch8 import Elasticsearch
@@ -6,20 +7,23 @@ from .base import Waiter
 
 # pylint: disable=missing-docstring,too-many-arguments
 
+
 class Health(Waiter):
     ACTIONS = ['allocation', 'cluster_routing', 'mount', 'replicas', 'shrink']
     RELO_ACTIONS = ['allocation', 'cluster_routing']
     STATUS_ACTIONS = ['mount', 'replicas', 'shrink']
     RELO_ARGS = {'relocating_shards': 0}
     STATUS_ARGS = {'status': 'green'}
+
     def __init__(
-            self,
-            client: Elasticsearch,
-            action: t.Literal[
-                'allocation', 'cluster_routing', 'mount', 'replicas', 'shrink'] = None,
-            pause: float = 1.5,
-            timeout: float = 15,
-            ) -> None:
+        self,
+        client: Elasticsearch,
+        action: t.Literal[
+            'allocation', 'cluster_routing', 'mount', 'replicas', 'shrink'
+        ] = None,
+        pause: float = 1.5,
+        timeout: float = 15,
+    ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Health')
         self.empty_check('action')
@@ -39,9 +43,10 @@ class Health(Waiter):
     @property
     def check(self) -> bool:
         """
-        This function calls `client.cluster.` :py:meth:`~.elasticsearch.client.ClusterClient.health`
-        and, based on the contents of self.argmap, will return ``True`` or ``False`` depending on
-        whether that particular keyword appears in the output, and has the expected value.
+        This function calls `client.cluster.`
+        :py:meth:`~.elasticsearch.client.ClusterClient.health` and, based on the
+        contents of self.argmap, will return ``True`` or ``False`` depending on whether
+        that particular keyword appears in the output, and has the expected value.
 
         If multiple keys are provided, all must match for a ``True`` response.
         """
@@ -50,15 +55,21 @@ class Health(Waiter):
         args = self.argmap
         for key, value in args.items():
             # First, verify that the key is in output
-            if not key in output:
+            if key not in output:
                 raise KeyError(f'Key "{key}" not in cluster health output')
-            # Verify that the output matches the expected value 
-            if not output[key] == value:
-                msg = f'NO MATCH: Value for key "{value}", health check output: {output[key]}'
+            # Verify that the output matches the expected value
+            if output[key] != value:
+                msg = (
+                    f'NO MATCH: Value for key "{value}", health check output: '
+                    f'{output[key]}'
+                )
                 self.logger.debug(msg)
-                check = False # We do not match
+                check = False  # We do not match
             else:
-                msg = f'MATCH: Value for key "{value}", health check output: {output[key]}'
+                msg = (
+                    f'MATCH: Value for key "{value}", health check output: '
+                    f'{output[key]}'
+                )
                 self.logger.debug(msg)
         if check:
             self.logger.debug('Health check for action %s passed.', self.action)

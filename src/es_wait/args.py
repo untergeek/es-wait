@@ -1,5 +1,7 @@
 """Args Class"""
+
 import typing as t
+
 
 class Args(t.Dict):
     """
@@ -7,11 +9,12 @@ class Args(t.Dict):
 
     Contains :py:meth:`update_settings` and :py:meth:`asdict` methods
     """
+
     def __init__(
-            self,
-            settings: t.Dict[str, t.Any] = None,
-            defaults: t.Dict[str, t.Any] = None,
-        ):
+        self,
+        settings: t.Dict[str, t.Any] = None,
+        defaults: t.Dict[str, t.Any] = None,
+    ):
         """Updatable object that turns dictionary keys into properties"""
         self.settings = settings
         if defaults is None:
@@ -45,13 +48,15 @@ class Args(t.Dict):
                 retval[setting] = getattr(self, setting, None)
         return retval
 
+
 class TaskArgs(Args):
     """Task-specific child class of Args"""
+
     def __init__(
-            self,
-            settings: t.Dict[str, t.Any] = None,
-            defaults: t.Dict[str, t.Any] = None,
-        ):
+        self,
+        settings: t.Dict[str, t.Any] = None,
+        defaults: t.Dict[str, t.Any] = None,
+    ):
         super().__init__(settings=settings, defaults=defaults)
         self.action = None
         self.completed = False

@@ -1,4 +1,5 @@
 """Task Check"""
+
 import typing as t
 import logging
 from time import localtime, strftime
@@ -8,16 +9,18 @@ from .args import TaskArgs
 
 # pylint: disable=missing-docstring,too-many-arguments
 
+
 class Task(Waiter):
     ACTIONS = ['forcemerge', 'reindex', 'update_by_query']
+
     def __init__(
-            self,
-            client: Elasticsearch,
-            action: t.Literal['forcemerge', 'reindex', 'update_by_query'] = None,
-            pause: float = 9,
-            timeout: float = -1,
-            task_id: str = None,
-        ) -> None:
+        self,
+        client: Elasticsearch,
+        action: t.Literal['forcemerge', 'reindex', 'update_by_query'] = None,
+        pause: float = 9,
+        timeout: float = -1,
+        task_id: str = None,
+    ) -> None:
         super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Health')
         self.task_id = task_id
@@ -29,15 +32,21 @@ class Task(Waiter):
     @property
     def check(self) -> bool:
         """
-        This function calls `client.tasks.` :py:meth:`~.elasticsearch.client.TasksClient.get` with
-        the provided ``task_id``.  If the task data contains ``'completed': True``, then it will
-        return ``True``. If the task is not completed, it will log some information about the task
-        and return ``False``
+        This function calls `client.tasks.`
+        :py:meth:`~.elasticsearch.client.TasksClient.get` with the provided
+        ``task_id``.  If the task data contains ``'completed': True``, then it will
+        return ``True``. If the task is not completed, it will log some information
+        about the task and return ``False``
         """
         try:
-            self.task_data = TaskArgs(settings=self.client.tasks.get(task_id=self.task_id))
+            self.task_data = TaskArgs(
+                settings=self.client.tasks.get(task_id=self.task_id)
+            )
         except Exception as err:
-            msg = f'Unable to obtain task information for task_id "{self.task_id}". Exception {err}'
+            msg = (
+                f'Unable to obtain task information for task_id "{self.task_id}". '
+                f'Exception {err}'
+            )
             raise ValueError(msg) from err
         self.task = TaskArgs(settings=self.task_data.task)
         self.reindex_check()
@@ -51,7 +60,8 @@ class Task(Waiter):
             if self.task_data.response:
                 if 'failures' in self.task_data.response:
                     msg = (
-                        f'Failures found in reindex response: {self.task_data.response["failures"]}'
+                        f'Failures found in reindex response: '
+                        f'{self.task_data.response["failures"]}'
                     )
                     raise ValueError(msg)
 
@@ -61,15 +71,19 @@ class Task(Waiter):
         self.logger.debug('Running time: %s seconds', running_time)
         if self.task_data.completed:
             completion_time = (running_time * 1000) + self.task['start_time_in_millis']
-            time_string = strftime('%Y-%m-%dT%H:%M:%S', localtime(completion_time/1000))
-            self.logger.debug('Task "%s" completed at %s.', self.task.description, time_string)
+            time_string = strftime(
+                '%Y-%m-%dT%H:%M:%S', localtime(completion_time / 1000)
+            )
+            self.logger.debug(
+                'Task "%s" completed at %s.', self.task.description, time_string
+            )
             retval = True
         else:
             # Log the task status here.
             self.logger.debug('Full Task Data: %s', self.task_data.asdict)
             msg = (
-                f'Task "{self.task.description}" with task_id "{self.task_id}" has been running '
-                f'for {running_time} seconds'
+                f'Task "{self.task.description}" with task_id "{self.task_id}" has '
+                f'been running for {running_time} seconds'
             )
             self.logger.debug(msg)
             retval = False
