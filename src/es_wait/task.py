@@ -34,7 +34,7 @@ class Task(Waiter):
         self.empty_check('task_id')
         self.task_data = None
         self.task = None
-        self.checkid = f'check for the {self.action} task to complete'
+        self.waitstr = f'for the "{self.action}" task to complete'
 
     @property
     def check(self) -> bool:

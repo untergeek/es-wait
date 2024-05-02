@@ -25,7 +25,7 @@ class Restore(Waiter):
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.index_list = index_list
         self.empty_check('index_list')
-        self.checkid = 'check for completion of index_list restoration from snapshot'
+        self.waitstr = 'for indices in index_list to be restored from snapshot'
 
     @property
     def check(self) -> bool:

@@ -31,7 +31,7 @@ class Health(Waiter):
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.action = action
         self.empty_check('action')
-        self.checkid = self.getcheckid
+        self.waitstr = self.getwaitstr
 
     def argmap(self) -> t.Union[t.Dict[str, int], t.Dict[str, str]]:
         """This is a little way to ensure many possibilities come down to one"""
@@ -79,10 +79,10 @@ class Health(Waiter):
         return check
 
     @property
-    def getcheckid(self) -> t.AnyStr:
+    def getwaitstr(self) -> t.AnyStr:
         retval = None
         if self.action in self.RELO_ACTIONS:
-            retval = 'check for cluster health to show zero relocating shards'
+            retval = 'for cluster health to show zero relocating shards'
         if self.action in self.STATUS_ACTIONS:
-            retval = 'check for cluster health to show green status'
+            retval = 'for cluster health to show green status'
         return retval

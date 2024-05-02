@@ -28,7 +28,7 @@ class Snapshot(Waiter):
         self.repository = repository
         self.empty_check('snapshot')
         self.empty_check('repository')
-        self.checkid = f'check for snapshot {self.snapshot} completion'
+        self.waitstr = f'for snapshot "{self.snapshot}" to complete'
 
     @property
     def check(self) -> bool:

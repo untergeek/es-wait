@@ -75,9 +75,8 @@ class IlmPhase(IndexLifecycle):
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
         self.phase = phase
         self.empty_check('phase')
-        self.checkid = (
-            f'check for completion of ILM transition for {self.name} to '
-            f'phase "{self.phase}"'
+        self.waitstr = (
+            f'for "{self.name}" to complete ILM transition to phase "{self.phase}"'
         )
 
     @property
@@ -114,7 +113,7 @@ class IlmStep(IndexLifecycle):
     ) -> None:
         self.logger = logging.getLogger('es_wait.IlmStep')
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
-        self.checkid = f'check for completion of ILM step for {self.name}'
+        self.waitstr = f'for "{self.name}" to complete the current ILM step'
 
     @property
     def check(self) -> bool:

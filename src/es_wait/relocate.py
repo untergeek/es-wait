@@ -24,7 +24,7 @@ class Relocate(Waiter):
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.name = name
         self.empty_check('name')
-        self.checkid = f'check for the {self.name} index relocation process to complete'
+        self.waitstr = f'for index "{self.name}" to finish relocating'
 
     @property
     def check(self) -> bool:

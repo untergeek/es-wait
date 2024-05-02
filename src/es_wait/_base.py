@@ -24,7 +24,7 @@ class Waiter:
         self.client = client
         self.pause = pause
         self.timeout = timeout
-        self.checkid = 'check for Waiter class'
+        self.waitstr = 'for Waiter class to initialize'
 
     @property
     def now(self) -> datetime:
@@ -87,7 +87,7 @@ class Waiter:
             response = self.check
             # Successfully completed task.
             if response:
-                logger.debug('%s finished executing', self.checkid)
+                logger.debug('The wait %s is over.', self.waitstr)
                 total = f'{(self.now - start_time).total_seconds():.2f}'
                 logger.debug('Elapsed time: %s seconds', total)
                 success = True
@@ -95,7 +95,7 @@ class Waiter:
             # Not success, and reached timeout (if defined)
             if (self.timeout != -1) and (elapsed >= self.timeout):
                 msg = (
-                    f'The {self.checkid} did not complete within {self.timeout} '
+                    f'The {self.waitstr} did not complete within {self.timeout} '
                     f'seconds.'
                 )
                 logger.error(msg)
@@ -103,7 +103,7 @@ class Waiter:
             # Not timed out and not yet success, so we wait.
             if loggit:
                 msg = (
-                    f'The {self.checkid} is not yet complete. {elapsed} total seconds '
+                    f'The wait {self.waitstr} is ongoing. {elapsed} total seconds '
                     f'have elapsed. Pausing {self.pause} seconds between checks.'
                 )
                 logger.debug(msg)
@@ -111,7 +111,7 @@ class Waiter:
 
         if not success:
             msg = (
-                f'The {self.checkid} failed to complete in the timeout period of '
+                f'The wait {self.waitstr} failed to complete in the timeout period of '
                 f'{self.timeout} seconds'
             )
             logger.error(msg)
