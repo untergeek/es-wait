@@ -4,32 +4,25 @@ import typing as t
 import logging
 from time import sleep
 from datetime import datetime, timezone
-from elasticsearch8 import Elasticsearch
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 
 class Waiter:
     """Class Definition"""
 
-    ACTIONS = ['any', 'listed', 'actions']
-
     def __init__(
         self,
-        client: Elasticsearch,
-        action: str = '',
+        client: 'Elasticsearch',
         pause: float = 9,  # The delay between checks
         timeout: float = -1,  # How long is too long
     ) -> None:
         self.logger = logging.getLogger('es_wait.Base')
         self.client = client
-        self.action = action
         self.pause = pause
         self.timeout = timeout
         self.checkid = 'check for Waiter class'
-
-    @property
-    def acceptable(self) -> t.Union[str, t.Sequence[str]]:
-        """Return acceptable actions for this class"""
-        return self.ACTIONS
 
     @property
     def now(self) -> datetime:

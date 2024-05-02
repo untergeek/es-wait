@@ -2,8 +2,10 @@
 
 import typing as t
 import logging
-from elasticsearch8 import Elasticsearch
-from .base import Waiter
+from ._base import Waiter
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 # pylint: disable=missing-docstring,too-many-arguments
 
@@ -11,21 +13,20 @@ from .base import Waiter
 class Exists(Waiter):
     """Class Definition"""
 
-    IDX_OR_DS = ['index', 'datastream', 'idx', 'ds']
+    IDX_OR_DS = ['index', 'data_stream', 'datastream', 'idx', 'ds']
     TEMPLATE = ['index_template', 'template', 'tmpl']
     COMPONENT = ['component_template', 'component', 'comp']
 
     def __init__(
         self,
-        client: Elasticsearch,
-        action: str = '',
+        client: 'Elasticsearch',
         pause: float = 1.5,
         timeout: float = 15,
         name: str = '',
         kind: str = '',
     ) -> None:
-        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Exists')
+        super().__init__(client=client, pause=pause, timeout=timeout)
         self.name = name
         self.kind = kind
         self.empty_check('name')
@@ -38,7 +39,7 @@ class Exists(Waiter):
         Check if the named entity exists, based on kind
         """
         doit = {
-            'index or datastream': {
+            'index or data_stream': {
                 'func': self.client.indices.exists,
                 'kwargs': {'index': self.name},
             },
@@ -62,7 +63,7 @@ class Exists(Waiter):
     ]:
         """This is a little way to ensure many possibilities come down to one"""
         if self.kind in self.IDX_OR_DS:
-            return 'index or datastream'
+            return 'index or data_stream'
         if self.kind in self.TEMPLATE:
             return 'index template'
         if self.kind in self.COMPONENT:

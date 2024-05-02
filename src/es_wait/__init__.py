@@ -1,11 +1,21 @@
 """Top-level init file"""
 
-__version__ = '0.3.5'
+__version__ = '0.5.0'
 from .exists import Exists
 from .health import Health
+from .ilm import IlmPhase, IlmStep
 from .relocate import Relocate
 from .restore import Restore
 from .snapshot import Snapshot
 from .task import Task
 
-__all__ = ['Exists', 'Health', 'Relocate', 'Restore', 'Snapshot', 'Task']
+__all__ = [
+    'Exists',
+    'Health',
+    'IlmPhase',
+    'IlmStep',
+    'Relocate',
+    'Restore',
+    'Snapshot',
+    'Task',
+]

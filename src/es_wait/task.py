@@ -3,9 +3,13 @@
 import typing as t
 import logging
 from time import localtime, strftime
-from elasticsearch8 import Elasticsearch
-from .base import Waiter
-from .args import TaskArgs
+from dotmap import DotMap
+from ._base import Waiter
+
+# from .args import TaskArgs
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 # pylint: disable=missing-docstring,too-many-arguments
 
@@ -15,16 +19,18 @@ class Task(Waiter):
 
     def __init__(
         self,
-        client: Elasticsearch,
-        action: t.Literal['forcemerge', 'reindex', 'update_by_query'] = None,
+        client: 'Elasticsearch',
         pause: float = 9,
         timeout: float = -1,
+        action: t.Literal['forcemerge', 'reindex', 'update_by_query'] = None,
         task_id: str = None,
     ) -> None:
-        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
-        self.logger = logging.getLogger('es_wait.Health')
+        self.logger = logging.getLogger('es_wait.Task')
+        super().__init__(client=client, pause=pause, timeout=timeout)
+        self.action = action
         self.task_id = task_id
-        self.empty_check(task_id)
+        self.empty_check('action')
+        self.empty_check('task_id')
         self.task_data = None
         self.task = None
         self.checkid = f'check for the {self.action} task to complete'
@@ -38,29 +44,42 @@ class Task(Waiter):
         return ``True``. If the task is not completed, it will log some information
         about the task and return ``False``
         """
+        # The properties for TaskArgs
+        # TASK_DATA
+        # self.task_data.response = {}
+        # self.task_data.completed = False
+        # self.task_data.task = {} -> Becomes TASK
+        # TASK
+        # self.task.action = str
+        # self.task.description = str
+        # self.task.running_time_in_nanos = 0
+
         try:
-            self.task_data = TaskArgs(
-                settings=self.client.tasks.get(task_id=self.task_id)
-            )
+            # self.task_data = TaskArgs(
+            #     settings=self.client.tasks.get(task_id=self.task_id)
+            # )
+            self.task_data = DotMap(self.client.tasks.get(task_id=self.task_id))
         except Exception as err:
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
                 f'Exception {err}'
             )
             raise ValueError(msg) from err
-        self.task = TaskArgs(settings=self.task_data.task)
+        self.task = self.task_data.task
         self.reindex_check()
         return self.task_complete
 
     def reindex_check(self) -> None:
         if self.task.action == 'indices:data/write/reindex':
             self.logger.debug("It's a REINDEX task")
-            self.logger.debug('TASK_DATA: %s', self.task_data.asdict)
-            self.logger.debug('TASK_DATA keys: %s', list(self.task_data.asdict.keys()))
-            if self.task_data.response:
-                if 'failures' in self.task_data.response:
+            self.logger.debug('TASK_DATA: %s', self.task_data.toDict())
+            self.logger.debug(
+                'TASK_DATA keys: %s', list(self.task_data.toDict().keys())
+            )
+            if self.task_data.response.failures:
+                if len(self.task_data.response.failures) > 0:
                     msg = (
-                        f'Failures found in reindex response: '
+                        f'Failures found in the {self.action} response: '
                         f'{self.task_data.response["failures"]}'
                     )
                     raise ValueError(msg)

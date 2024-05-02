@@ -2,25 +2,25 @@
 
 import typing as t
 import logging
-from elasticsearch8 import Elasticsearch
-from .base import Waiter
+from ._base import Waiter
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 # pylint: disable=missing-docstring,too-many-arguments
 
 
 class Relocate(Waiter):
-    ACTIONS: t.Optional[str] = None
 
     def __init__(
         self,
-        client: Elasticsearch,
-        action: t.Optional[str] = None,
+        client: 'Elasticsearch',
         pause: float = 9,
         timeout: float = -1,
         name: str = None,
     ) -> None:
-        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
-        self.logger = logging.getLogger('es_wait.Health')
+        self.logger = logging.getLogger('es_wait.Relocate')
+        super().__init__(client=client, pause=pause, timeout=timeout)
         self.name = name
         self.empty_check('name')
         self.checkid = f'check for the {self.name} index relocation process to complete'
@@ -41,6 +41,12 @@ class Relocate(Waiter):
 
     @property
     def finished_state(self) -> bool:
+        """
+        Return the boolean state of whether all shards in the index are 'STARTED'
+
+        The all() function returns True if all items in an iterable are true,
+        otherwise it returns False. We use it twice here, nested.
+        """
         return all(
             all(shard['state'] == "STARTED" for shard in shards)
             for shards in self.routing_table.values()
@@ -49,8 +55,18 @@ class Relocate(Waiter):
     @property
     def routing_table(self) -> t.Dict:
         msg = f'Unable to get routing table data from cluster state for {self.name}'
+        # Using filter_path drastically reduces the result size
+        fpath = f'routing_table.indices.{self.name}'
         try:
-            result = self.client.cluster.state(index=self.name)
+            result = self.client.cluster.state(index=self.name, filter_path=fpath)
+            # {
+            #     "routing_table": {
+            #         "indices": {
+            #         "SELF.NAME": {
+            #             "shards": {
+            #             "0": [
+            #                   {
+            #                    "state": "SHARD_STATE",
         except Exception as exc:
             self.logger.critical(msg)
             raise ValueError(msg) from exc
