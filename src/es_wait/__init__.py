@@ -1,6 +1,6 @@
 """Top-level init file"""
 
-__version__ = '0.5.5'
+__version__ = '0.5.6'
 from .exists import Exists
 from .health import Health
 from .ilm import IlmPhase, IlmStep

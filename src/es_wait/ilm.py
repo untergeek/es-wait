@@ -37,7 +37,7 @@ class IndexLifecycle(Waiter):
         name and returns the resulting response.
         """
         try:
-            resp = self.client.ilm.explain_lifecycle(index=self.name)
+            resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
             logger.debug('ILM Explain response: %s', self.prettystr(resp))
         except NotFoundError as exc:
             msg = (
