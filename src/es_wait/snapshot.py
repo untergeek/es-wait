@@ -59,7 +59,7 @@ class Snapshot(Waiter):
         except Exception as err:
             raise ValueError(
                 f'Unable to obtain information for snapshot "{self.snapshot}" in '
-                f'repository "{self.repository}". Error: {err}'
+                f'repository "{self.repository}". Error: {self.prettystr(err)}'
             ) from err
         return result
 

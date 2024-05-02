@@ -2,6 +2,7 @@
 
 import typing as t
 import logging
+from pprint import pformat
 from time import sleep
 from datetime import datetime, timezone
 
@@ -41,6 +42,32 @@ class Waiter:
             msg = f'Keyword arg {name} cannot be None'
             logger.critical(msg)
             raise ValueError(msg)
+
+    def prettystr(self, *args, **kwargs) -> str:
+        """
+        A (nearly) straight up wrapper for pprint.pformat, except that we provide our
+        own default values for 'indent' (2) and 'sort_dicts' (False). Primarily for
+        debug logging and showing more readable dictionaries.
+
+        'Return the formatted representation of object as a string. indent, width,
+        depth, compact, sort_dicts and underscore_numbers are passed to the
+        PrettyPrinter constructor as formatting parameters' (from pprint
+        documentation).
+        """
+        defaults = [
+            ('indent', 2),
+            ('width', 80),
+            ('depth', None),
+            ('compact', False),
+            ('sort_dicts', False),
+            ('underscore_numbers', False),
+        ]
+        kw = {}
+        for tup in defaults:
+            key, default = tup
+            kw[key] = kwargs[key] if key in kwargs else default
+
+        return pformat(*args, **kw)
 
     def setup(self) -> None:
         """Setup the waiter"""

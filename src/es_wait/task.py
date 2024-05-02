@@ -63,7 +63,7 @@ class Task(Waiter):
         except Exception as err:
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
-                f'Exception {err}'
+                f'Exception {self.prettystr(err)}'
             )
             raise ValueError(msg) from err
         self.task = self.task_data.task
@@ -73,13 +73,16 @@ class Task(Waiter):
     def reindex_check(self) -> None:
         if self.task.action == 'indices:data/write/reindex':
             logger.debug("It's a REINDEX task")
-            logger.debug('TASK_DATA: %s', self.task_data.toDict())
-            logger.debug('TASK_DATA keys: %s', list(self.task_data.toDict().keys()))
+            logger.debug('TASK_DATA: %s', self.prettystr(self.task_data.toDict()))
+            logger.debug(
+                'TASK_DATA keys: %s',
+                self.prettystr(list(self.task_data.toDict().keys())),
+            )
             if self.task_data.response.failures:
                 if len(self.task_data.response.failures) > 0:
                     msg = (
                         f'Failures found in the {self.action} response: '
-                        f'{self.task_data.response["failures"]}'
+                        f'{self.prettystr(self.task_data.response["failures"])}'
                     )
                     raise ValueError(msg)
 
@@ -98,7 +101,7 @@ class Task(Waiter):
             retval = True
         else:
             # Log the task status here.
-            logger.debug('Full Task Data: %s', self.task_data.asdict)
+            logger.debug('Full Task Data: %s', self.prettystr(self.task_data.toDict()))
             msg = (
                 f'Task "{self.task.description}" with task_id "{self.task_id}" has '
                 f'been running for {running_time} seconds'

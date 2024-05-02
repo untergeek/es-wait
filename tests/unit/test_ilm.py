@@ -41,13 +41,24 @@ class TestIlmStep:
 
     def test_ilm_explain_idx_notfound(self, client, fake_notfound):
         """
-        Should re-raise ``NotFoundError`` when NotFoundError is encountered
+        Should re-raise ``NotFoundError`` when NotFoundError is encountered and index
+        does not exist
         """
         client.ilm.explain_lifecycle.side_effect = fake_notfound
+        client.indices.exists.return_value = False
         ic = IlmStep(client, name='arbitrary')
         with pytest.raises(NotFoundError):
             # pylint: disable=W0104
             ic.check
+
+    def test_ilm_explain_idx_notfound_exists(self, client, fake_notfound):
+        """
+        Should return False when NotFoundError is encountered but index exists
+        """
+        client.ilm.explain_lifecycle.side_effect = fake_notfound
+        client.indices.exists.return_value = True
+        ic = IlmStep(client, name='arbitrary')
+        assert not ic.check
 
     def test_ilm_step_complete(self, ilmresponse, ilm_test):
         """Should result in True if action and step are complete"""

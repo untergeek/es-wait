@@ -45,13 +45,13 @@ class Restore(Waiter):
                 logger.debug('_recovery API returned an empty response. Trying again.')
                 return False
             response.update(chunk_response)
-        logger.debug('Provided indices: %s', self.index_list)
-        logger.debug('Found indices: %s', list(response.keys()))
+        logger.debug('Provided indices: %s', self.prettystr(self.index_list))
+        logger.debug('Found indices: %s', self.prettystr(list(response.keys())))
         for index, data in response.items():
             for shard in data['shards']:
                 stage = shard['stage']
                 if stage != 'DONE':
-                    print(f'Index {index} is still in stage {stage}')
+                    logger.debug('Index %s is still in stage %s', index, stage)
                     return False
 
         # If we've gotten here, all of the indices have recovered
@@ -85,7 +85,7 @@ class Restore(Waiter):
         except Exception as err:
             msg = (
                 f'Unable to obtain recovery information for specified indices. Error: '
-                f'{err}'
+                f'{self.prettystr(err)}'
             )
             raise ValueError(msg) from err
         return chunk_response

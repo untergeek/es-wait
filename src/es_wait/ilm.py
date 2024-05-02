@@ -38,8 +38,7 @@ class IndexLifecycle(Waiter):
         """
         try:
             resp = self.client.ilm.explain_lifecycle(index=self.name)
-            logger.debug('ILM Explain response: %s', resp)
-
+            logger.debug('ILM Explain response: %s', self.prettystr(resp))
         except NotFoundError as exc:
             msg = (
                 f'Datastream/Index Name changed. {self.name} was not found. '
@@ -51,7 +50,7 @@ class IndexLifecycle(Waiter):
         except Exception as err:
             msg = f'Unable to get ILM information for index {self.name}'
             logger.critical(msg)
-            raise IlmWaitError(f'{msg}. Exception: {err}') from err
+            raise IlmWaitError(f'{msg}. Exception: {self.prettystr(err)}') from err
         retval = resp['indices'][self.name]
         return retval
 
@@ -130,6 +129,7 @@ class IlmStep(IndexLifecycle):
         We cannot not be responsible for retrying with a changed name as it's not in
         our scope as a "waiter"
         """
+        explain = DotMap(action='no', step='no')  # Set defaults so the return works
         try:
             explain = DotMap(self.get_explain_data())
         except NotFoundError as err:
