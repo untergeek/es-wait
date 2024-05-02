@@ -2,25 +2,26 @@
 
 import typing as t
 import logging
-from elasticsearch8 import Elasticsearch
-from .base import Waiter
+from ._base import Waiter
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 # pylint: disable=missing-docstring,too-many-arguments
 
 
 class Restore(Waiter):
-    ACTIONS: t.Optional[str] = None
+    """Restore Waiter class"""
 
     def __init__(
         self,
-        client: Elasticsearch,
-        action: t.Optional[str] = None,
+        client: 'Elasticsearch',
         pause: float = 9,
         timeout: float = -1,
         index_list: t.Sequence[str] = None,
     ) -> None:
-        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
-        self.logger = logging.getLogger('es_wait.Snapshot')
+        self.logger = logging.getLogger('es_wait.Restore')
+        super().__init__(client=client, pause=pause, timeout=timeout)
         self.index_list = index_list
         self.empty_check('index_list')
         self.checkid = 'check for completion of index_list restoration from snapshot'
@@ -52,6 +53,7 @@ class Restore(Waiter):
                 stage = shard['stage']
                 if stage != 'DONE':
                     print(f'Index {index} is still in stage {stage}')
+                    return False
 
         # If we've gotten here, all of the indices have recovered
         return True
@@ -78,6 +80,7 @@ class Restore(Waiter):
         return chunks
 
     def get_recovery(self, chunk: t.Sequence[str]) -> t.Dict:
+        """Get recovery information from Elasticsearch"""
         try:
             chunk_response = self.client.indices.recovery(index=chunk, human=True)
         except Exception as err:

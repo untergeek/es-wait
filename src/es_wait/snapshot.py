@@ -2,8 +2,10 @@
 
 import typing as t
 import logging
-from elasticsearch8 import Elasticsearch
-from .base import Waiter
+from ._base import Waiter
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 # pylint: disable=missing-docstring,too-many-arguments
 
@@ -13,15 +15,14 @@ class Snapshot(Waiter):
 
     def __init__(
         self,
-        client: Elasticsearch,
-        action: t.Optional[str] = None,
+        client: 'Elasticsearch',
         pause: float = 9,
         timeout: float = -1,
         snapshot: str = None,
         repository: str = None,
     ) -> None:
-        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Snapshot')
+        super().__init__(client=client, pause=pause, timeout=timeout)
         self.snapshot = snapshot
         self.repository = repository
         self.empty_check('snapshot')

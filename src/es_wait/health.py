@@ -2,8 +2,10 @@
 
 import typing as t
 import logging
-from elasticsearch8 import Elasticsearch
-from .base import Waiter
+from ._base import Waiter
+
+if t.TYPE_CHECKING:
+    from elasticsearch8 import Elasticsearch
 
 # pylint: disable=missing-docstring,too-many-arguments
 
@@ -17,19 +19,19 @@ class Health(Waiter):
 
     def __init__(
         self,
-        client: Elasticsearch,
+        client: 'Elasticsearch',
+        pause: float = 1.5,
+        timeout: float = 15,
         action: t.Literal[
             'allocation', 'cluster_routing', 'mount', 'replicas', 'shrink'
         ] = None,
-        pause: float = 1.5,
-        timeout: float = 15,
     ) -> None:
-        super().__init__(client=client, action=action, pause=pause, timeout=timeout)
         self.logger = logging.getLogger('es_wait.Health')
+        super().__init__(client=client, pause=pause, timeout=timeout)
+        self.action = action
         self.empty_check('action')
         self.checkid = self.getcheckid
 
-    @property
     def argmap(self) -> t.Union[t.Dict[str, int], t.Dict[str, str]]:
         """This is a little way to ensure many possibilities come down to one"""
         if self.action in self.RELO_ACTIONS:
@@ -52,7 +54,7 @@ class Health(Waiter):
         """
         output = self.client.cluster.health()
         check = True
-        args = self.argmap
+        args = self.argmap()
         for key, value in args.items():
             # First, verify that the key is in output
             if key not in output:
@@ -77,6 +79,7 @@ class Health(Waiter):
 
     @property
     def getcheckid(self) -> t.AnyStr:
+        retval = None
         if self.action in self.RELO_ACTIONS:
             retval = 'check for cluster health to show zero relocating shards'
         if self.action in self.STATUS_ACTIONS:
