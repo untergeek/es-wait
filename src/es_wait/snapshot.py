@@ -7,6 +7,8 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+logger = logging.getLogger('es_wait.Snapshot')
+
 # pylint: disable=missing-docstring,too-many-arguments
 
 
@@ -21,7 +23,6 @@ class Snapshot(Waiter):
         snapshot: str = None,
         repository: str = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.Snapshot')
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.snapshot = snapshot
         self.repository = repository
@@ -64,14 +65,10 @@ class Snapshot(Waiter):
 
     def log_completion(self, state: str) -> None:
         if state == 'SUCCESS':
-            self.logger.info('Snapshot %s successfully completed.', self.snapshot)
+            logger.info('Snapshot %s successfully completed.', self.snapshot)
         elif state == 'PARTIAL':
-            self.logger.warning(
-                'Snapshot %s completed with state PARTIAL.', self.snapshot
-            )
+            logger.warning('Snapshot %s completed with state PARTIAL.', self.snapshot)
         elif state == 'FAILED':
-            self.logger.error('Snapshot %s completed with state FAILED.', self.snapshot)
+            logger.error('Snapshot %s completed with state FAILED.', self.snapshot)
         else:
-            self.logger.warning(
-                'Snapshot %s completed with state: %s', self.snapshot, state
-            )
+            logger.warning('Snapshot %s completed with state: %s', self.snapshot, state)

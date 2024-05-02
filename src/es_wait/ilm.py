@@ -10,6 +10,8 @@ from .exceptions import IlmWaitError
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+logger = logging.getLogger('es_wait.IndexLifecycle')
+
 # pylint: disable=R0913
 
 
@@ -23,7 +25,7 @@ class IndexLifecycle(Waiter):
         timeout: float = -1,
         name: t.Union[str, None] = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.IndexLifecycle')
+
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.name = name
         self.empty_check('name')
@@ -39,7 +41,7 @@ class IndexLifecycle(Waiter):
             kw = {'index': self.name, 'filter_path': f'indices.{self.name}'}
             # retval = self.client.ilm.explain_lifecycle(**kw)['indices'][self.name]
             resp = self.client.ilm.explain_lifecycle(**kw)
-            self.logger.debug('response: %s', resp)
+            logger.debug('response: %s', resp)
 
         except NotFoundError as exc:
             msg = (
@@ -47,11 +49,11 @@ class IndexLifecycle(Waiter):
                 f'This is likely due to the index name suddenly changing, as with '
                 f'searchable snapshot mounts.'
             )
-            self.logger.error(msg)
+            logger.error(msg)
             raise exc  # re-raise the original. Just wanted to log here.
         except Exception as err:
             msg = f'Unable to get ILM information for index {self.name}'
-            self.logger.critical(msg)
+            logger.critical(msg)
             raise IlmWaitError(f'{msg}. Exception: {err}') from err
         retval = resp['indices'][self.name]
         return retval

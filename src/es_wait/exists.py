@@ -7,6 +7,8 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+logger = logging.getLogger('es_wait.Exists')
+
 # pylint: disable=missing-docstring,too-many-arguments
 
 
@@ -25,7 +27,7 @@ class Exists(Waiter):
         name: str = '',
         kind: str = '',
     ) -> None:
-        self.logger = logging.getLogger('es_wait.Exists')
+
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.name = name
         self.kind = kind
@@ -68,5 +70,5 @@ class Exists(Waiter):
             return 'index template'
         if self.kind in self.COMPONENT:
             return 'component template'
-        self.logger.error('%s is not an acceptable value for kind', self.kind)
+        logger.error('%s is not an acceptable value for kind', self.kind)
         return 'FAIL'  # We should not see this, like, ever

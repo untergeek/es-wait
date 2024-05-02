@@ -7,6 +7,8 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+logger = logging.getLogger('es_wait.Restore')
+
 # pylint: disable=missing-docstring,too-many-arguments
 
 
@@ -20,7 +22,6 @@ class Restore(Waiter):
         timeout: float = -1,
         index_list: t.Sequence[str] = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.Restore')
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.index_list = index_list
         self.empty_check('index_list')
@@ -41,13 +42,11 @@ class Restore(Waiter):
         for chunk in self.index_list_chunks:
             chunk_response = self.get_recovery(chunk)
             if chunk_response == {}:
-                self.logger.debug(
-                    '_recovery API returned an empty response. Trying again.'
-                )
+                logger.debug('_recovery API returned an empty response. Trying again.')
                 return False
             response.update(chunk_response)
-        self.logger.debug('Provided indices: %s', self.index_list)
-        self.logger.debug('Found indices: %s', list(response.keys()))
+        logger.debug('Provided indices: %s', self.index_list)
+        logger.debug('Found indices: %s', list(response.keys()))
         for index, data in response.items():
             for shard in data['shards']:
                 stage = shard['stage']

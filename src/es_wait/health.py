@@ -7,6 +7,8 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+logger = logging.getLogger('es_wait.Health')
+
 # pylint: disable=missing-docstring,too-many-arguments
 
 
@@ -26,7 +28,6 @@ class Health(Waiter):
             'allocation', 'cluster_routing', 'mount', 'replicas', 'shrink'
         ] = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.Health')
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.action = action
         self.empty_check('action')
@@ -39,7 +40,7 @@ class Health(Waiter):
         if self.action in self.STATUS_ACTIONS:
             return self.STATUS_ARGS
         msg = f'{self.action} is not an acceptable value for action'
-        self.logger.error(msg)
+        logger.error(msg)
         raise ValueError(msg)
 
     @property
@@ -65,16 +66,16 @@ class Health(Waiter):
                     f'NO MATCH: Value for key "{value}", health check output: '
                     f'{output[key]}'
                 )
-                self.logger.debug(msg)
+                logger.debug(msg)
                 check = False  # We do not match
             else:
                 msg = (
                     f'MATCH: Value for key "{value}", health check output: '
                     f'{output[key]}'
                 )
-                self.logger.debug(msg)
+                logger.debug(msg)
         if check:
-            self.logger.debug('Health check for action %s passed.', self.action)
+            logger.debug('Health check for action %s passed.', self.action)
         return check
 
     @property

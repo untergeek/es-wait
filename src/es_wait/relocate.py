@@ -7,6 +7,8 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
+logger = logging.getLogger('es_wait.Relocate')
+
 # pylint: disable=missing-docstring,too-many-arguments
 
 
@@ -19,7 +21,6 @@ class Relocate(Waiter):
         timeout: float = -1,
         name: str = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.Relocate')
         super().__init__(client=client, pause=pause, timeout=timeout)
         self.name = name
         self.empty_check('name')
@@ -36,7 +37,7 @@ class Relocate(Waiter):
         """
         finished = self.finished_state
         if finished:
-            self.logger.debug('Relocate Check for index: "%s" has passed.', self.name)
+            logger.debug('Relocate Check for index: "%s" has passed.', self.name)
         return finished
 
     @property
@@ -68,10 +69,10 @@ class Relocate(Waiter):
             #                   {
             #                    "state": "SHARD_STATE",
         except Exception as exc:
-            self.logger.critical(msg)
+            logger.critical(msg)
             raise ValueError(msg) from exc
         try:
             return result['routing_table']['indices'][self.name]['shards']
         except KeyError as err:
-            self.logger.critical(msg)
+            logger.critical(msg)
             raise KeyError(msg) from err
