@@ -67,7 +67,7 @@ class Waiter:
             key, default = tup
             kw[key] = kwargs[key] if key in kwargs else default
 
-        return pformat(*args, **kw)
+        return f"\n{pformat(*args, **kw)}"  # newline in front so it's always clean
 
     def setup(self) -> None:
         """Setup the waiter"""
