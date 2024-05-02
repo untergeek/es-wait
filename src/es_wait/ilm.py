@@ -37,11 +37,8 @@ class IndexLifecycle(Waiter):
         name and returns the resulting response.
         """
         try:
-            # The use of filter_path reduces the result set size
-            kw = {'index': self.name, 'filter_path': f'indices.{self.name}'}
-            # retval = self.client.ilm.explain_lifecycle(**kw)['indices'][self.name]
-            resp = self.client.ilm.explain_lifecycle(**kw)
-            logger.debug('response: %s', resp)
+            resp = self.client.ilm.explain_lifecycle(index=self.name)
+            logger.debug('ILM Explain response: %s', resp)
 
         except NotFoundError as exc:
             msg = (
@@ -133,5 +130,15 @@ class IlmStep(IndexLifecycle):
         We cannot not be responsible for retrying with a changed name as it's not in
         our scope as a "waiter"
         """
-        explain = DotMap(self.get_explain_data())
+        try:
+            explain = DotMap(self.get_explain_data())
+        except NotFoundError as err:
+            if self.client.indices.exists(index=self.name):
+                msg = (
+                    f'NotFoundError encountered. However, index {self.name} has been '
+                    f'confirmed to exist, so we continue to retry...'
+                )
+                self.logger.debug(msg)
+            else:
+                raise err
         return bool(explain.action == 'complete' and explain.step == 'complete')
