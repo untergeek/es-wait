@@ -1,4 +1,4 @@
-"""Snapshot Check"""
+"""Snapshot Completion Waiter"""
 
 import typing as t
 import logging
@@ -7,13 +7,13 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
-logger = logging.getLogger('es_wait.Snapshot')
+logger = logging.getLogger(__name__)
 
-# pylint: disable=missing-docstring,too-many-arguments
+# pylint: disable=R0913
 
 
 class Snapshot(Waiter):
-    ACTIONS: t.Optional[str] = None
+    """Wait for a snapshot to complete"""
 
     def __init__(
         self,
@@ -24,7 +24,9 @@ class Snapshot(Waiter):
         repository: str = None,
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
+        #: The snapshot name
         self.snapshot = snapshot
+        #: The repository name
         self.repository = repository
         self.empty_check('snapshot')
         self.empty_check('repository')
@@ -34,13 +36,16 @@ class Snapshot(Waiter):
     @property
     def check(self) -> bool:
         """
-        This function calls `client.snapshot.`
-        :py:meth:`~.elasticsearch.client.SnapshotClient.get` and tests to see whether
-        the snapshot is complete, and if so, with what status. It will log errors
-        according to the result. If the snapshot is still ``IN_PROGRESS``, it will
-        return ``False``. ``SUCCESS`` will be an ``INFO`` level message, ``PARTIAL``
-        nets a ``WARNING`` message, ``FAILED`` is an ``ERROR``, message, and all others
-        will be a ``WARNING`` level message.
+        Get the state of the snapshot from :py:meth:`snapstate` to determine if the
+        snapshot is complete, and if so, with what status.
+
+        If the state is ``IN_PROGRESS``, this method will return ``False``.
+
+        For all other states, it calls :py:meth:`log_completion` to log the final
+        result. It then returns ``True``.
+
+        :getter: Returns if the check was complete
+        :type: bool
         """
         state = self.snapstate['snapshots'][0]['state']
         retval = True
@@ -52,6 +57,14 @@ class Snapshot(Waiter):
 
     @property
     def snapstate(self) -> t.Dict:
+        """
+        This function calls
+        :py:meth:`snapshot.get() <elasticsearch.client.SnapshotClient.get>` to get the
+        current state of the snapshot.
+
+        :getter: Returns the state of the snapshot
+        :type: bool
+        """
         result = {}
         try:
             result = self.client.snapshot.get(
@@ -65,6 +78,33 @@ class Snapshot(Waiter):
         return result
 
     def log_completion(self, state: str) -> None:
+        """
+        Log completion based on ``state``
+
+        If the snapshot state is:
+
+        .. list-table:: Snapshot States & Logs
+           :widths: 15 15 70
+           :header-rows: 1
+
+           * - State
+             - Log Level
+             - Message
+           * - ``SUCCESS``
+             - ``INFO``
+             - Snapshot [`name`] successfully completed.
+           * - ``PARTIAL``
+             - ``WARNING``
+             - Snapshot [`name`] completed with state PARTIAL.
+           * - ``FAILED``
+             - ``ERROR``
+             - Snapshot [`name`] completed with state FAILED.
+           * - [`other`]
+             - ``WARNING``
+             - Snapshot [`name`] completed with state: [`other`]
+
+        :param state: The snapshot state
+        """
         if state == 'SUCCESS':
             logger.info('Snapshot %s successfully completed.', self.snapshot)
         elif state == 'PARTIAL':

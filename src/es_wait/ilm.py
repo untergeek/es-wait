@@ -1,4 +1,4 @@
-"""ILM Phase and Step Checks"""
+"""ILM Phase and Step Check Waiters"""
 
 import typing as t
 import logging
@@ -10,7 +10,7 @@ from .exceptions import IlmWaitError
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
-logger = logging.getLogger('es_wait.IndexLifecycle')
+logger = logging.getLogger(__name__)
 
 # pylint: disable=R0913
 
@@ -27,14 +27,15 @@ class IndexLifecycle(Waiter):
     ) -> None:
 
         super().__init__(client=client, pause=pause, timeout=timeout)
+        #: The index name
         self.name = name
         self.empty_check('name')
 
     def get_explain_data(self) -> t.Union[t.Dict, None]:
         """
-        Calls `client.indices.`
-        :py:meth:`~.elasticsearch.client.IlmClient.explain_lifecycle` with an index
-        name and returns the resulting response.
+        This method calls :py:meth:`ilm.explain_lifecycle()
+        <elasticsearch.client.IlmClient.explain_lifecycle>` with :py:attr:`name` and
+        returns the resulting response.
         """
         try:
             resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
@@ -71,8 +72,8 @@ class IlmPhase(IndexLifecycle):
         name: t.Union[str, None] = None,
         phase: t.Union[str, None] = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.IlmPhase')
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
+        #: The target ILM phase
         self.phase = phase
         self.empty_check('phase')
         self.waitstr = (
@@ -83,15 +84,19 @@ class IlmPhase(IndexLifecycle):
     @property
     def check(self) -> bool:
         """
-        Check for ILM phase change completion.  It will return ``True`` if the expected
-        phase and the actually collected phase match.
+        Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
+        phase change completion.  It will return ``True`` if the expected phase and the
+        actually collected phase match.
 
-        Upstream callers need to try/catch any of KeyError (index name changed),
-        :py:exc:`~.elasticsearch.exceptions.NotFoundError`, and
+        Upstream callers need to try/catch any of :py:exc:`KeyError` (index name
+        changed), :py:exc:`NotFoundError <elasticsearch.exceptions.NotFoundError>`, and
         :py:exc:`~.es_wait.exceptions.IlmWaitError`.
 
         We cannot not be responsible for retrying with a changed name as it's not in
         our scope as a "waiter"
+
+        :getter: Returns if the check was complete
+        :type: bool
         """
         explain = DotMap(self.get_explain_data())
         return bool(explain.phase == self.phase)
@@ -112,22 +117,25 @@ class IlmStep(IndexLifecycle):
         timeout: float = -1,
         name: t.Union[str, None] = None,
     ) -> None:
-        self.logger = logging.getLogger('es_wait.IlmStep')
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
         self.waitstr = f'for "{self.name}" to complete the current ILM step'
 
     @property
     def check(self) -> bool:
         """
-        Check for ILM step completion.  It will return ``True`` if the step and
-        action values are both ``complete``
+        Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
+        step completion.  It will return ``True`` if the step and action values are
+        both ``complete``
 
-        Upstream callers need to try/catch any of KeyError (index name changed),
-        :py:exc:`~.elasticsearch.exceptions.NotFoundError`, and
+        Upstream callers need to try/catch any of :py:exc:`KeyError` (index name
+        changed), :py:exc:`NotFoundError <elasticsearch.exceptions.NotFoundError>`, and
         :py:exc:`~.es_wait.exceptions.IlmWaitError`.
 
         We cannot not be responsible for retrying with a changed name as it's not in
         our scope as a "waiter"
+
+        :getter: Returns if the check was complete
+        :type: bool
         """
         explain = DotMap(action='no', step='no')  # Set defaults so the return works
         try:
@@ -138,7 +146,7 @@ class IlmStep(IndexLifecycle):
                     f'NotFoundError encountered. However, index {self.name} has been '
                     f'confirmed to exist, so we continue to retry...'
                 )
-                self.logger.debug(msg)
+                logger.debug(msg)
             else:
                 raise err
         return bool(explain.action == 'complete' and explain.step == 'complete')
