@@ -13,7 +13,7 @@ logger = logging.getLogger('es_wait.Waiter')
 
 
 class Waiter:
-    """Class Definition"""
+    """Waiter Parent Class"""
 
     def __init__(
         self,
@@ -21,23 +21,43 @@ class Waiter:
         pause: float = 9,  # The delay between checks
         timeout: float = -1,  # How long is too long
     ) -> None:
+        #: An :py:class:`Elasticsearch <elasticsearch.Elasticsearch>` client instance
         self.client = client
+        #: The delay between checks for completion
         self.pause = pause
+        #: The number of seconds before giving up. -1 means no timeout.
         self.timeout = timeout
         self.waitstr = 'for Waiter class to initialize'
 
     @property
     def now(self) -> datetime:
-        """Return the 'now' datetime"""
+        """
+        :getter: Returns the time 'now' in the UTC timezone
+        :type: datetime
+        """
         return datetime.now(timezone.utc)
 
     @property
     def check(self) -> bool:
-        """This will need to be redefined by each child class"""
+        """
+        This will be redefined by each child class
+
+        :getter: Returns if the check was complete
+        :type: bool
+        """
         return False
 
     def empty_check(self, name: str) -> None:
-        """Ensure that no empty values sneak through"""
+        """
+        Raise a :py:exc:`ValueError` if the instance attribute `name` is None. This
+        method literally just checks:
+
+          .. code-block:: python
+
+             if getattr(self, name) is None:
+
+        :param name: The name of an instance attribute.
+        """
         if getattr(self, name) is None:
             msg = f'Keyword arg {name} cannot be None'
             logger.critical(msg)
@@ -45,9 +65,10 @@ class Waiter:
 
     def prettystr(self, *args, **kwargs) -> str:
         """
-        A (nearly) straight up wrapper for pprint.pformat, except that we provide our
-        own default values for 'indent' (2) and 'sort_dicts' (False). Primarily for
-        debug logging and showing more readable dictionaries.
+        A (nearly) straight up wrapper for :py:meth:`pprint.pformat()
+        <pprint.PrettyPrinter.pformat>`, except that we provide our own default values
+        for `indent` (`2`) and `sort_dicts` (`False`). Primarily for debug logging and
+        showing more readable dictionaries.
 
         'Return the formatted representation of object as a string. indent, width,
         depth, compact, sort_dicts and underscore_numbers are passed to the
@@ -69,11 +90,23 @@ class Waiter:
 
         return f"\n{pformat(*args, **kw)}"  # newline in front so it's always clean
 
-    def setup(self) -> None:
-        """Setup the waiter"""
+    def wait(self, frequency: int = 5) -> None:
+        """
+        This method is where the actual waiting occurs. Depending on what `frequency`
+        is set to, you should see `non-DEBUG` level logs no more than every `frequency`
+        seconds.
 
-    def wait_for_it(self, frequency: int = 5) -> None:
-        """Do the actual waiting"""
+        If :py:attr:`timeout` has been reached without :py:meth:`check` returning as
+        ``True``, then a :py:exc:`TimeoutError` will be raised.
+
+        If :py:meth:`check` returns ``False``, then the method will wait
+        :py:attr:`pause` seconds before calling :py:meth:`check` again.
+
+        Elapsed time will be logged every `frequency` seconds, when :py:meth:`check` is
+        ``True``, or when :py:attr:`timeout` is reached.
+
+        :param frequency: The number of seconds between log reports on progress.
+        """
         # Now with this mapped, we can perform the wait as indicated.
         start_time = self.now
         success = False

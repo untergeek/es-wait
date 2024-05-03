@@ -49,7 +49,7 @@ class TestTask:
             pause=0.05,
             timeout=1,
         )
-        assert tc.wait_for_it() is None
+        assert tc.wait() is None
 
     def test_wait_timeout(self, client, generic_task, taskchk, taskmaster):
         """Should raise a TimeoutError if task does not complete on time"""
@@ -58,4 +58,4 @@ class TestTask:
             client, action='reindex', task_id=generic_task, pause=0.5, timeout=5.5
         )
         with pytest.raises(TimeoutError):
-            tc.wait_for_it()
+            tc.wait()

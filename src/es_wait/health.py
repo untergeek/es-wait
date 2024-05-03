@@ -1,4 +1,4 @@
-"""Health Check"""
+"""Health Check Waiter"""
 
 import typing as t
 import logging
@@ -7,12 +7,14 @@ from ._base import Waiter
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
-logger = logging.getLogger('es_wait.Health')
+logger = logging.getLogger(__name__)
 
-# pylint: disable=missing-docstring,too-many-arguments
+# pylint: disable=R0913
 
 
 class Health(Waiter):
+    """Wait for health check result to be the expected state"""
+
     ACTIONS = ['allocation', 'cluster_routing', 'mount', 'replicas', 'shrink']
     RELO_ACTIONS = ['allocation', 'cluster_routing']
     STATUS_ACTIONS = ['mount', 'replicas', 'shrink']
@@ -29,13 +31,17 @@ class Health(Waiter):
         ] = None,
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
+        #: The action determines the kind of response we look for in the health check
         self.action = action
         self.empty_check('action')
         self.waitstr = self.getwaitstr
         logger.debug('Waiting %s...', self.waitstr)
 
     def argmap(self) -> t.Union[t.Dict[str, int], t.Dict[str, str]]:
-        """This is a little way to ensure many possibilities come down to one"""
+        """
+        This method ensures that we are processing the correct arguments based on
+        :py:attr:`action`
+        """
         if self.action in self.RELO_ACTIONS:
             return self.RELO_ARGS
         if self.action in self.STATUS_ACTIONS:
@@ -47,12 +53,16 @@ class Health(Waiter):
     @property
     def check(self) -> bool:
         """
-        This function calls `client.cluster.`
-        :py:meth:`~.elasticsearch.client.ClusterClient.health` and, based on the
-        contents of self.argmap, will return ``True`` or ``False`` depending on whether
-        that particular keyword appears in the output, and has the expected value.
+        This function calls :py:meth:`cluster.health()
+        <elasticsearch.client.ClusterClient.health>` and, based on the
+        return value from :py:meth:`argmap`, will return ``True`` or ``False``
+        depending on whether that particular keyword appears in the output, and has the
+        expected value.
 
         If multiple keys are provided, all must match for a ``True`` response.
+
+        :getter: Returns if the check was complete
+        :type: bool
         """
         output = self.client.cluster.health()
         check = True
@@ -81,6 +91,12 @@ class Health(Waiter):
 
     @property
     def getwaitstr(self) -> t.AnyStr:
+        """
+        Define the waitstr based on :py:attr:`action`
+
+        :getter: Returns the proper waitstr
+        :type: str
+        """
         retval = None
         if self.action in self.RELO_ACTIONS:
             retval = 'for cluster health to show zero relocating shards'
