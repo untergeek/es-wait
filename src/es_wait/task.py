@@ -35,6 +35,7 @@ class Task(Waiter):
         self.task_data = None
         self.task = None
         self.waitstr = f'for the "{self.action}" task to complete'
+        logger.debug('Waiting %s...', self.waitstr)
 
     @property
     def check(self) -> bool:

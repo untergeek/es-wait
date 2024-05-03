@@ -25,6 +25,7 @@ class Relocate(Waiter):
         self.name = name
         self.empty_check('name')
         self.waitstr = f'for index "{self.name}" to finish relocating'
+        logger.debug('Waiting %s...', self.waitstr)
 
     @property
     def check(self) -> bool:

@@ -34,6 +34,7 @@ class Exists(Waiter):
         self.empty_check('name')
         self.empty_check('kind')
         self.waitstr = f'for {self.kindmap} "{name}" to exist'
+        logger.debug('Waiting %s...', self.waitstr)
 
     @property
     def check(self) -> bool:

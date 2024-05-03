@@ -32,6 +32,7 @@ class Health(Waiter):
         self.action = action
         self.empty_check('action')
         self.waitstr = self.getwaitstr
+        logger.debug('Waiting %s...', self.waitstr)
 
     def argmap(self) -> t.Union[t.Dict[str, int], t.Dict[str, str]]:
         """This is a little way to ensure many possibilities come down to one"""

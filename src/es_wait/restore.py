@@ -26,6 +26,7 @@ class Restore(Waiter):
         self.index_list = index_list
         self.empty_check('index_list')
         self.waitstr = 'for indices in index_list to be restored from snapshot'
+        logger.debug('Waiting %s...', self.waitstr)
 
     @property
     def check(self) -> bool:

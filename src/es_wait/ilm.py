@@ -78,6 +78,7 @@ class IlmPhase(IndexLifecycle):
         self.waitstr = (
             f'for "{self.name}" to complete ILM transition to phase "{self.phase}"'
         )
+        logger.debug('Waiting %s...', self.waitstr)
 
     @property
     def check(self) -> bool:
