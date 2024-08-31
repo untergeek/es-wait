@@ -1,18 +1,35 @@
 #!/bin/bash
 
+
 # Source the common.bash file from the same path as the script
 source $(dirname "$0")/common.bash
+
+echo
+NODECOUNT=1
+ROLES="\"data\", \"data_content\", \"data_hot\", \"data_warm\", \"data_cold\", \"master\", \"ingest\""
 
 # Test to see if we were passed a VERSION
 if [ "x${1}" == "x" ]; then
   echo "Error! No Elasticsearch version provided."
   echo "VERSION must be in Semver format, e.g. X.Y.Z, 8.6.0"
-  echo "USAGE: ${0} VERSION"
+  echo "USAGE: ${0} VERSION [SCENARIO]" 
   exit 1
+fi
+
+# Test to see if we were passed another argument
+if [ "x${2}" != "x" ]; then
+  source ${SCRIPTPATH}/scenarios.bash
+  echo "Using scenario: ${2}"
 fi
 
 # Set the version
 VERSION=${1}
+# Add ES_VERSION to ${ENVCFG}
+echo "export ES_VERSION=${VERSION}" >> ${ENVCFG}
+
+# Start console output
+echo "Using Elasticsearch version ${VERSION}"
+echo
 
 ######################################
 ### Setup snapshot repository path ###
@@ -26,18 +43,29 @@ mkdir -p ${REPOLOCAL}
 ### Run Container ###
 #####################
 
-# Start the container
-echo -en "\rStarting ${NAME} container... "
-docker run -d -it --name ${NAME} -m ${HEAP} \
-  -p ${LOCAL_PORT}:${DOCKER_PORT} \
-  -v ${REPOLOCAL}:${REPODOCKER} \
-  -e "discovery.type=single-node" \
-  -e "cluster.name=local-cluster" \
-  -e "node.name=local-node" \
-  -e "xpack.monitoring.templates.enabled=false" \
-  -e "path.repo=${REPODOCKER}" \
-${IMAGE}:${VERSION}
+docker network rm -f ${TRUNK}-net > /dev/null 2>&1
+docker network create ${TRUNK}-net > /dev/null 2>&1
 
+
+# Start the container
+echo "Creating ${NODECOUNT} node(s)..."
+echo 
+
+echo "Starting node 1..."
+start_container "1"
+
+# Set the URL
+URL=https://${URL_HOST}:${LOCAL_PORT}
+
+# Add TESTPATH to ${ENVCFG}
+echo "export CA_CRT=${PROJECT_ROOT}/http_ca.crt" >> ${ENVCFG}
+echo "export TEST_PATH=${TESTPATH}" >> ${ENVCFG}
+echo "export TEST_ES_SERVER=${URL}" >> ${ENVCFG}
+echo "export TEST_ES_REPO=${REPONAME}" >> ${ENVCFG}
+
+# Write some ESCLIENT_ environment variables to the .env file  
+echo "export ESCLIENT_CA_CERTS=${CACRT}" >> ${ENVCFG}
+echo "export ESCLIENT_HOSTS=${URL}" >> ${ENVCFG}
 
 # Set up the curl config file, first line creates a new file, all others append
 echo "-o /dev/null" > ${CURLCFG}
@@ -46,6 +74,7 @@ echo '-w "%{http_code}\n"' >> ${CURLCFG}
 
 # Do the xpack_fork function, passing the container name and the .env file path
 xpack_fork "${NAME}" "${ENVCFG}"
+echo
 
 # Did we get a bad return code?
 if [ $? -eq 1 ]; then
@@ -55,52 +84,60 @@ if [ $? -eq 1 ]; then
   exit 1
 fi
 
-# Set the URL
-URL=https://${URL_HOST}:${LOCAL_PORT}
+# Initialize trial license
+response=$(curl -s \
+  --cacert ${CACRT} -u "${ESUSR}:${ESPWD}" \
+  -XPOST "${URL}/_license/start_trial?acknowledge=true")
 
-# Write the TEST_ES_SERVER environment variable to the .env file
-echo "export TEST_ES_SERVER=${URL}" >> ${ENVCFG}
-
-# We expect a 200 HTTP rsponse
-EXPECTED=200
-
-# Set the NODE var
-NODE="${NAME} instance"
-
-# Start with an empty value
-ACTUAL=0
-
-# Initialize loop counter
-COUNTER=0
-
-# Loop until we get our 200 code
-while [ "${ACTUAL}" != "${EXPECTED}" ] && [ ${COUNTER} -lt ${LIMIT} ]; do
-
-  # Get our actual response
-  ACTUAL=$(curl -K ${CURLCFG} ${URL})
-
-  # Report what we received
-  echo -en "\rHTTP status code for ${NODE} is: ${ACTUAL}"
-
-  # If we got what we expected, we're great!
-  if [ "${ACTUAL}" == "${EXPECTED}" ]; then
-    echo " --- ${NODE} is ready!"
-
-  else
-    # Otherwise sleep and try again 
-    sleep 1
-    ((++COUNTER))
-  fi
-
-done
-# End while loop
-
-# If we still don't have what we expected, we hit the LIMIT
-if [ "${ACTUAL}" != "${EXPECTED}" ]; then
-  
-  echo "Unable to connect to ${URL} in ${LIMIT} seconds. Unable to continue. Exiting..." 
+expected='{"acknowledged":true,"trial_was_started":true,"type":"trial"}'
+if [ "$response" != "$expected" ]; then
+  echo "ERROR! Unable to start trial license!"
   exit 1
+else
+  echo "Trial license started..."
+fi
 
+# Set up snapshot repository. The following will create a JSON file suitable for use with
+# curl -d @filename
+
+rm -f ${REPOJSON}  
+
+# Build a pretty JSON object defining the repository settings
+echo    '{'                    >> $REPOJSON
+echo    '  "type": "fs",'      >> $REPOJSON
+echo    '  "settings": {'      >> $REPOJSON
+echo -n '    "location": "'    >> $REPOJSON
+echo -n "${REPODOCKER}"        >> $REPOJSON
+echo    '"'                    >> $REPOJSON
+echo    '  }'                  >> $REPOJSON
+echo    '}'                    >> $REPOJSON
+
+# Create snapshot repository
+response=$(curl -s \
+  --cacert ${CACRT} -u "${ESUSR}:${ESPWD}" \
+  -H 'Content-Type: application/json' \
+  -XPOST "${URL}/_snapshot/${REPONAME}?verify=false" \
+  --json \@${REPOJSON})
+
+expected='{"acknowledged":true}'
+if [ "$response" != "$expected" ]; then
+  echo "ERROR! Unable to create snapshot repository"
+  exit 1
+else
+  echo "Snapshot repository initialized..."
+  rm -f ${REPOJSON}
+fi
+
+echo
+echo "Node 1 started."
+
+if [ ${NODECOUNT} -gt 1 ]; then
+  for i in $(seq 2 ${NODECOUNT}); do
+    CAPTURE=$(start_container "${i}" "${NODETOKEN}" "${ROLES}")
+    testport=$(( 9200 + ${i} -1 ))
+    CAPTURE=$(check_url "https://${URL_HOST}:${testport}")
+    echo "Node ${i} started."
+  done
 fi
 
 ##################
@@ -108,10 +145,14 @@ fi
 ##################
 
 echo
-echo "${NAME} container is up using image elasticsearch:${VERSION}"
-
+echo "All nodes ready to test!"
 echo
-echo "Environment variables are in \$PROJECT_ROOT/.env"
 
-echo
-echo "Ready to test!"
+if [ "$EXECPATH" == "$PROJECT_ROOT" ]; then
+  echo "Environment variables are in .env"
+elif [ "$EXECPATH" == "$SCRIPTPATH" ]; then
+  echo "\$PWD is $SCRIPTPATH."
+  echo "Environment variables are in ../.env"
+else
+  echo "Environment variables are in ${PROJECT_ROOT}/.env"
+fi

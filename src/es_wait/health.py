@@ -35,6 +35,7 @@ class Health(Waiter):
         self.action = action
         self.empty_check('action')
         self.waitstr = self.getwaitstr
+        self.do_health_report = True
         logger.debug('Waiting %s...', self.waitstr)
 
     def argmap(self) -> t.Union[t.Dict[str, int], t.Dict[str, str]]:

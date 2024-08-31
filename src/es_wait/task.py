@@ -63,14 +63,17 @@ class Task(Waiter):
         # self.task.description = str
         # self.task.running_time_in_nanos = 0
 
+        response = {}
         try:
-            self.task_data = DotMap(self.client.tasks.get(task_id=self.task_id))
+            response = dict(self.client.tasks.get(task_id=self.task_id))
         except Exception as err:
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
-                f'Exception {self.prettystr(err)}'
+                f'Response: {self.prettystr(response)} -- '
+                f'Exception: {self.prettystr(err)}'
             )
             raise ValueError(msg) from err
+        self.task_data = DotMap(response)
         self.task = self.task_data.task
         self.reindex_check()
         return self.task_complete
