@@ -3,7 +3,7 @@
 ``es_wait`` Documentation
 =========================
 
-A simple way to wait for entities in Elasticsearch to be in a ready state.
+A simple way to wait for entities in Elasticsearch to be in the expected state.
 
 .. code-block:: python
 
@@ -12,8 +12,8 @@ A simple way to wait for entities in Elasticsearch to be in a ready state.
 
    client = Elasticsearch()
 
-   snapready = es_wait(client, snapshot='SNAPNAME', repository='REPONAME')
-   snapready.wait()
+   snap_check = Snapshot(client, snapshot='SNAPNAME', repository='REPONAME')
+   snap_check.wait()
 
 The above example will wait until the snapshot is completed.
 

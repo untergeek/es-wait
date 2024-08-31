@@ -1,10 +1,12 @@
 """Base Waiter Class"""
 
 import typing as t
+from sys import version_info
 import logging
 from pprint import pformat
 from time import sleep
 from datetime import datetime, timezone
+from .utils import indicator_generator
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
@@ -28,6 +30,8 @@ class Waiter:
         #: The number of seconds before giving up. -1 means no timeout.
         self.timeout = timeout
         self.waitstr = 'for Waiter class to initialize'
+        #: Only changes to True in certain circumstances
+        self.do_health_report = False
 
     @property
     def now(self) -> datetime:
@@ -81,8 +85,10 @@ class Waiter:
             ('depth', None),
             ('compact', False),
             ('sort_dicts', False),
-            ('underscore_numbers', False),
         ]
+        if version_info[0] >= 3 and version_info[1] >= 10:
+            # underscore_numbers only works in 3.10 and up
+            defaults.append(('underscore_numbers', False))
         kw = {}
         for tup in defaults:
             key, default = tup
@@ -104,6 +110,10 @@ class Waiter:
 
         Elapsed time will be logged every `frequency` seconds, when :py:meth:`check` is
         ``True``, or when :py:attr:`timeout` is reached.
+
+        If :py:attr:`do_health_report` is ``True``, then call
+        :py:meth:`client.health_report() <elasticsearch.client.health_report>`
+        and generate many log lines at INFO level showing whatever was found.
 
         :param frequency: The number of seconds between log reports on progress.
         """
@@ -148,4 +158,15 @@ class Waiter:
                 f'{self.timeout} seconds'
             )
             logger.error(msg)
+            if self.do_health_report:
+                rpt = dict(self.client.health_report())
+                if rpt['status'] != 'green':
+                    logger.info('HEALTH REPORT: STATUS: %s', {rpt['status'].upper()})
+                    inds = rpt['indicators']
+                    for ind in inds:
+                        if isinstance(ind, str):
+                            if inds[ind]['status'] != 'green':
+                                for line in indicator_generator(ind, inds[ind]):
+                                    logger.info('HEALTH REPORT: %s', line)
+
             raise TimeoutError(msg)
