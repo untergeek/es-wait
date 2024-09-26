@@ -26,6 +26,9 @@ CLUSTER_HEALTH = {
     "task_max_waiting_in_queue_millis": 0,
     "active_shards_percent_as_number": 100,
 }
+INDEX_HEALTH = [{"health": "green"}]
+INDEX_NAME = 'index_name'
+INDEX_RESOLVE = {'indices': [{'name': INDEX_NAME}], 'aliases': [], 'data_streams': []}
 FAKE_FAIL = Exception('Simulated Failure')
 GENERIC_TASK = {'task': 'I0ekFjMhSPCQz7FUs1zJOg:54510686'}
 NAMED_INDICES = ["index-2015.01.01", "index-2015.02.01"]
@@ -148,6 +151,30 @@ def ilm_test(client, named_index):
         return bool(ic.check is result)
 
     return _ilm_test
+
+
+@pytest.fixture(scope='function')
+def index_health():
+    return INDEX_HEALTH
+
+
+@pytest.fixture(scope='function')
+def idx():
+    return INDEX_NAME
+
+
+@pytest.fixture(scope='function')
+def idx_resolve():
+    return INDEX_RESOLVE
+
+
+@pytest.fixture(scope='function')
+def indexhc(client, index_health, idx_resolve):
+    def _indexhc(retval=index_health, resolve=idx_resolve):
+        client.cat.indices.return_value = retval
+        client.indices.resolve_index.return_value = resolve
+
+    return _indexhc
 
 
 @pytest.fixture(scope='function')
