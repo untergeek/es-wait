@@ -41,6 +41,7 @@ Contents
    waiter
    exists
    health
+   index_health
    ilm
    relocate
    restore
