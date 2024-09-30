@@ -65,7 +65,6 @@ class Index(Waiter):
         """
         res = self.client.cat.indices(index=self.index, format='json', h='health')
         logger.debug('res = %s', res)
-        logger.debug('type(res) = %s', type(res))
         output = res[0]
         check = True
         args = self.argmap()
