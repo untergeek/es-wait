@@ -28,7 +28,7 @@ keywords = [
     'wait',
 ]
 dependencies = [
-    'elasticsearch8>=8.15.0',
+    'elasticsearch8>=8.15.1',
     'dotmap==1.3.30',
 ]
 
@@ -38,7 +38,7 @@ test = [
     'requests',
     'pytest >=7.2.1',
     'pytest-cov',
-    'es_client==8.15.1',
+    'es_client>=8.13.4',
 ]
 doc = ['sphinx', 'sphinx_rtd_theme']
 
@@ -144,7 +144,7 @@ dependencies = [
     'requests',
     'pytest >=7.2.1',
     'pytest-cov',
-    'es_client==8.13.4',
+    'es_client>=8.13.4',
 ]
 
 [publish.index.repos.main]

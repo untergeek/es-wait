@@ -10,6 +10,8 @@ __pycache__/
 .black
 pylintrc
 pylintrc.toml
+docker_test/.kurl
+http_ca.crt
 
 # Distribution / packaging
 .Python
