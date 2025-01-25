@@ -18,9 +18,9 @@ class Relocate(Waiter):
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 9,
-        timeout: float = -1,
-        name: str = None,
+        pause: float = 9.0,
+        timeout: float = -1.0,
+        name: t.Optional[str] = None,
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
         #: The index name
