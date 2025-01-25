@@ -18,11 +18,13 @@ class Restore(Waiter):
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 9,
-        timeout: float = -1,
-        index_list: t.Sequence[str] = None,
+        pause: float = 9.0,
+        timeout: float = -1.0,
+        index_list: t.Optional[t.Sequence[str]] = None,
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
+        if not index_list:
+            index_list = []
         #: The list of indices being restored
         self.index_list = index_list
         self.empty_check('index_list')
@@ -30,7 +32,7 @@ class Restore(Waiter):
         logger.debug('Waiting %s...', self.waitstr)
 
     @property
-    def index_list_chunks(self) -> t.Sequence[t.Sequence[t.AnyStr]]:
+    def index_list_chunks(self) -> t.Sequence[t.Sequence[str]]:
         """
         This utility chunks very large index lists into 3KB chunks.
         It measures the size as a csv string, then converts back into a list for the
@@ -78,7 +80,7 @@ class Restore(Waiter):
         response = {}
         for chunk in self.index_list_chunks:
             chunk_response = self.get_recovery(chunk)
-            if chunk_response == {}:
+            if not chunk_response:
                 logger.debug('_recovery API returned an empty response. Trying again.')
                 return False
             response.update(chunk_response)
@@ -106,11 +108,11 @@ class Restore(Waiter):
         :param chunk: A list of index names
         """
         try:
-            chunk_response = self.client.indices.recovery(index=chunk, human=True)
+            chunk_response = dict(self.client.indices.recovery(index=chunk, human=True))
         except Exception as err:
             msg = (
-                f'Unable to obtain recovery information for specified indices. Error: '
-                f'{self.prettystr(err)}'
+                f'Unable to obtain recovery information for specified indices {chunk}. '
+                f'Error: {self.prettystr(err)}'
             )
             raise ValueError(msg) from err
         return chunk_response
