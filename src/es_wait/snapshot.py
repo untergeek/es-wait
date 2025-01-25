@@ -18,10 +18,10 @@ class Snapshot(Waiter):
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 9,
-        timeout: float = -1,
-        snapshot: str = None,
-        repository: str = None,
+        pause: float = 9.0,
+        timeout: float = -1.0,
+        snapshot: str = '',
+        repository: str = '',
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
         #: The snapshot name
@@ -67,8 +67,10 @@ class Snapshot(Waiter):
         """
         result = {}
         try:
-            result = self.client.snapshot.get(
-                repository=self.repository, snapshot=self.snapshot
+            result = dict(
+                self.client.snapshot.get(
+                    repository=self.repository, snapshot=self.snapshot
+                )
             )
         except Exception as err:
             raise ValueError(
