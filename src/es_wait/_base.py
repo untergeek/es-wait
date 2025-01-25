@@ -13,6 +13,8 @@ if t.TYPE_CHECKING:
 
 logger = logging.getLogger('es_wait.Waiter')
 
+# pylint: disable=R0912,R1702
+
 
 class Waiter:
     """Waiter Parent Class"""
@@ -20,8 +22,8 @@ class Waiter:
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 9,  # The delay between checks
-        timeout: float = -1,  # How long is too long
+        pause: float = 9.0,  # The delay between checks
+        timeout: float = -1.0,  # How long is too long
     ) -> None:
         #: An :py:class:`Elasticsearch <elasticsearch.Elasticsearch>` client instance
         self.client = client
