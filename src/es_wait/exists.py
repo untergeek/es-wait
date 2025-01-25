@@ -23,7 +23,7 @@ class Exists(Waiter):
         self,
         client: 'Elasticsearch',
         pause: float = 1.5,
-        timeout: float = 15,
+        timeout: float = 15.0,
         name: str = '',
         kind: t.Literal[
             'index',
@@ -32,7 +32,8 @@ class Exists(Waiter):
             'template',
             'component_template',
             'component',
-        ] = '',
+            'undef',
+        ] = 'undef',
     ) -> None:
 
         super().__init__(client=client, pause=pause, timeout=timeout)
@@ -41,7 +42,13 @@ class Exists(Waiter):
         #: What kind of entity
         self.kind = kind
         self.empty_check('name')
-        self.empty_check('kind')
+        if kind == 'undef':
+            msg = (
+                'kind must be one of index, data_stream, index_template, '
+                'template, component_template, or component'
+            )
+            logger.error(msg)
+            raise ValueError(msg)
         self.waitstr = f'for {self.kindmap} "{name}" to exist'
         logger.debug('Waiting %s...', self.waitstr)
 
@@ -79,13 +86,15 @@ class Exists(Waiter):
             },
             'FAIL': {'func': False, 'kwargs': {}},
         }
-        return bool(doit[self.kindmap]['func'](**doit[self.kindmap]['kwargs']))
+        return bool(
+            doit[self.kindmap]['func'](**doit[self.kindmap]['kwargs'])  # type: ignore
+        )
 
     @property
     def kindmap(
         self,
     ) -> t.Literal[
-        'index or datastream', 'index template', 'component template', 'FAIL'
+        'index or data_stream', 'index template', 'component template', 'FAIL'
     ]:
         """
         This method helps map :py:attr:`kind` to the proper 'exists' API call, as well
