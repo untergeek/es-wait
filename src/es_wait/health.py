@@ -25,14 +25,21 @@ class Health(Waiter):
         self,
         client: 'Elasticsearch',
         pause: float = 1.5,
-        timeout: float = 15,
+        timeout: float = 15.0,
         action: t.Literal[
-            'allocation', 'cluster_routing', 'mount', 'replicas', 'shrink'
-        ] = None,
+            'allocation', 'cluster_routing', 'mount', 'replicas', 'shrink', 'undef'
+        ] = 'undef',
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
         #: The action determines the kind of response we look for in the health check
         self.action = action
+        if action == 'undef':
+            msg = (
+                'action must be one of allocation, cluster_routing, mount, '
+                'replicas, or shrink'
+            )
+            logger.error(msg)
+            raise ValueError(msg)
         self.empty_check('action')
         self.waitstr = self.getwaitstr
         self.do_health_report = True
@@ -91,14 +98,14 @@ class Health(Waiter):
         return check
 
     @property
-    def getwaitstr(self) -> t.AnyStr:
+    def getwaitstr(self) -> str:
         """
         Define the waitstr based on :py:attr:`action`
 
         :getter: Returns the proper waitstr
         :type: str
         """
-        retval = None
+        retval = ''
         if self.action in self.RELO_ACTIONS:
             retval = 'for cluster health to show zero relocating shards'
         if self.action in self.STATUS_ACTIONS:
