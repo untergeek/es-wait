@@ -17,21 +17,24 @@ class Index(Waiter):
 
     ACTIONS = ['allocation', 'cluster_routing', 'mount', 'replicas', 'shrink']
     HEALTH_ACTIONS = ['health', 'mount', 'replicas', 'shrink']
-    HEALTH_ARGS = {'health': 'green'}
+    HEALTH_ARGS = {'status': 'green'}
 
     def __init__(
         self,
         client: 'Elasticsearch',
         pause: float = 1.5,
-        timeout: float = 15,
-        action: t.Literal['health', 'mount', 'replicas', 'shrink'] = None,
-        index: str = None,
+        timeout: float = 15.0,
+        action: t.Literal['health', 'mount', 'replicas', 'shrink', 'undef'] = 'undef',
+        index: str = '',
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout)
         #: The action determines the kind of response we look for in the health check
         self.action = action
+        if action == 'undef':
+            msg = 'action must be one of health, mount, replicas, or shrink'
+            logger.error(msg)
+            raise ValueError(msg)
         self.index = index
-        self.empty_check('action')
         self.empty_check('index')
         self.resolve_index()
         self.waitstr = self.getwaitstr
@@ -52,8 +55,8 @@ class Index(Waiter):
     @property
     def check(self) -> bool:
         """
-        This function calls :py:meth:`cat.indices()
-        <elasticsearch.client.CatClient.indices>` and, based on the
+        This function calls :py:meth:`cluster.health()
+        <elasticsearch.client.ClusterClient.health>` and, based on the
         return value from :py:meth:`argmap`, will return ``True`` or ``False``
         depending on whether that particular keyword appears in the output, and has the
         expected value.
@@ -63,9 +66,10 @@ class Index(Waiter):
         :getter: Returns if the check was complete
         :type: bool
         """
-        res = self.client.cat.indices(index=self.index, format='json', h='health')
-        logger.debug('res = %s', res)
-        output = res[0]
+        output = dict(
+            self.client.cluster.health(index=self.index, filter_path='status')
+        )
+        logger.debug('output = %s', output)
         check = True
         args = self.argmap()
         for key, value in args.items():
@@ -104,14 +108,14 @@ class Index(Waiter):
             raise ValueError(f'{self.index} does not resolve to itself: {resp}')
 
     @property
-    def getwaitstr(self) -> t.AnyStr:
+    def getwaitstr(self) -> str:
         """
         Define the waitstr based on :py:attr:`action`
 
         :getter: Returns the proper waitstr
         :type: str
         """
-        retval = None
+        retval = ''
         if self.action in self.HEALTH_ACTIONS:
             retval = 'for index health to show green status'
         return retval

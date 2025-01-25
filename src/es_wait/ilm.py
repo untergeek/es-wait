@@ -2,7 +2,7 @@
 
 import typing as t
 import logging
-from dotmap import DotMap
+from dotmap import DotMap  # type: ignore
 from elasticsearch8.exceptions import NotFoundError
 from ._base import Waiter
 from .exceptions import IlmWaitError
@@ -21,9 +21,9 @@ class IndexLifecycle(Waiter):
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 1,
-        timeout: float = -1,
-        name: t.Union[str, None] = None,
+        pause: float = 1.0,
+        timeout: float = -1.0,
+        name: str = '',
     ) -> None:
 
         super().__init__(client=client, pause=pause, timeout=timeout)
@@ -69,8 +69,8 @@ class IlmPhase(IndexLifecycle):
         client: 'Elasticsearch',
         pause: float = 1,
         timeout: float = -1,
-        name: t.Union[str, None] = None,
-        phase: t.Union[str, None] = None,
+        name: str = '',
+        phase: str = '',
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
         #: The target ILM phase
@@ -86,7 +86,9 @@ class IlmPhase(IndexLifecycle):
         """
         Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
         phase change completion.  It will return ``True`` if the expected phase and the
-        actually collected phase match.
+        actually collected phase match. If phase is ``new``, it will return ``True`` if
+        the collected phase is ``new`` or higher (``hot``, ``warm``, ``cold``,
+        ``frozen``, ``delete``).
 
         Upstream callers need to try/catch any of :py:exc:`KeyError` (index name
         changed), :py:exc:`NotFoundError <elasticsearch.exceptions.NotFoundError>`, and
@@ -99,7 +101,44 @@ class IlmPhase(IndexLifecycle):
         :type: bool
         """
         explain = DotMap(self.get_explain_data())
+        logger.info('ILM Phase %s found.', explain.phase)
+        if self.phase == 'new':
+            logger.debug('Expecting ILM Phase new, or higher')
+            if self.phase_by_num(explain.phase) >= self.phase_by_num(self.phase):
+                return True
+        else:
+            logger.debug('Expecting ILM Phase %s', self.phase)
         return bool(explain.phase == self.phase)
+
+    def phase_by_num(self, phase: str) -> int:
+        """Map a phase name to a phase number"""
+        _ = {
+            'undef': 0,
+            'new': 1,
+            'hot': 2,
+            'warm': 3,
+            'cold': 4,
+            'frozen': 5,
+            'delete': 6,
+        }
+        if phase in _:
+            return _[phase]
+        return 0  # Default to 0/undef if not found
+
+    def phase_by_name(self, num: int) -> str:
+        """Map a phase number to a phase name"""
+        _ = {
+            # 0: 'undef',
+            1: 'new',
+            2: 'hot',
+            3: 'warm',
+            4: 'cold',
+            5: 'frozen',
+            6: 'delete',
+        }
+        if num in _:
+            return _[num]
+        return 'undef'  # Default to 'undef' if not found
 
 
 class IlmStep(IndexLifecycle):
@@ -115,7 +154,7 @@ class IlmStep(IndexLifecycle):
         client: 'Elasticsearch',
         pause: float = 1,
         timeout: float = -1,
-        name: t.Union[str, None] = None,
+        name: str = '',
     ) -> None:
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
         self.waitstr = f'for "{self.name}" to complete the current ILM step'
