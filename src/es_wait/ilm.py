@@ -101,6 +101,13 @@ class IlmPhase(IndexLifecycle):
         :type: bool
         """
         explain = DotMap(self.get_explain_data())
+        if not explain:
+            logger.warning('No ILM Explain data found.')
+            return False
+        logger.debug('ILM Explain data: %s', explain)
+        if not explain.phase:
+            logger.warning('No ILM Phase found.')
+            return False
         logger.info('ILM Phase %s found.', explain.phase)
         if self.phase == 'new':
             logger.debug('Expecting ILM Phase new, or higher')
