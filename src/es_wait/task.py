@@ -2,8 +2,10 @@
 
 import typing as t
 import logging
+import warnings
 from time import localtime, strftime
 from dotmap import DotMap  # type: ignore
+from elasticsearch8.exceptions import GeneralAvailabilityWarning
 from ._base import Waiter
 
 if t.TYPE_CHECKING:
@@ -72,6 +74,10 @@ class Task(Waiter):
 
         response = {}
         try:
+            # The Tasks API is not yet GA. We need to suppress the warning for now.
+            # This is required after elasticsearch8>=8.16.0 as the warning is raised
+            # from that release onward.
+            warnings.filterwarnings("ignore", category=GeneralAvailabilityWarning)
             response = dict(self.client.tasks.get(task_id=self.task_id))
         except Exception as err:
             msg = (
