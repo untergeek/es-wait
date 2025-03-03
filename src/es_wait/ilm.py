@@ -6,6 +6,7 @@ from dotmap import DotMap  # type: ignore
 from elasticsearch8.exceptions import NotFoundError
 from ._base import Waiter
 from .exceptions import IlmWaitError
+from .utils import prettystr
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
@@ -29,7 +30,7 @@ class IndexLifecycle(Waiter):
         super().__init__(client=client, pause=pause, timeout=timeout)
         #: The index name
         self.name = name
-        self.empty_check('name')
+        self._ensure_not_none('name')
 
     def get_explain_data(self) -> t.Union[t.Dict, None]:
         """
@@ -39,7 +40,7 @@ class IndexLifecycle(Waiter):
         """
         try:
             resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
-            logger.debug('ILM Explain response: %s', self.prettystr(resp))
+            logger.debug('ILM Explain response: %s', prettystr(resp))
         except NotFoundError as exc:
             msg = (
                 f'Datastream/Index Name changed. {self.name} was not found. '
@@ -51,7 +52,7 @@ class IndexLifecycle(Waiter):
         except Exception as err:
             msg = f'Unable to get ILM information for index {self.name}'
             logger.critical(msg)
-            raise IlmWaitError(f'{msg}. Exception: {self.prettystr(err)}') from err
+            raise IlmWaitError(f'{msg}. Exception: {prettystr(err)}') from err
         retval = resp['indices'][self.name]
         return retval
 
@@ -75,7 +76,7 @@ class IlmPhase(IndexLifecycle):
         super().__init__(client=client, pause=pause, timeout=timeout, name=name)
         #: The target ILM phase
         self.phase = phase
-        self.empty_check('phase')
+        self._ensure_not_none('phase')
         self.waitstr = (
             f'for "{self.name}" to complete ILM transition to phase "{self.phase}"'
         )

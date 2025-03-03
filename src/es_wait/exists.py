@@ -41,7 +41,7 @@ class Exists(Waiter):
         self.name = name
         #: What kind of entity
         self.kind = kind
-        self.empty_check('name')
+        self._ensure_not_none('name')
         if kind == 'undef':
             msg = (
                 'kind must be one of index, data_stream, index_template, '

@@ -25,7 +25,7 @@ class Relocate(Waiter):
         super().__init__(client=client, pause=pause, timeout=timeout)
         #: The index name
         self.name = name
-        self.empty_check('name')
+        self._ensure_not_none('name')
         self.waitstr = f'for index "{self.name}" to finish relocating'
         logger.debug('Waiting %s...', self.waitstr)
 

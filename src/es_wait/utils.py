@@ -1,6 +1,8 @@
 """Helper and Utility Functions"""
 
 import typing as t
+from sys import version_info
+from pprint import pformat
 
 
 def diagnosis_generator(ind: str, data: t.Sequence) -> t.Generator:
@@ -42,3 +44,33 @@ def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
                 yield line
         else:
             yield f'INDICATOR: {ind}: {key.upper()}: {data[key]}'
+
+
+def prettystr(*args, **kwargs) -> str:
+    """
+    A (nearly) straight up wrapper for :py:meth:`pprint.pformat()
+    <pprint.PrettyPrinter.pformat>`, except that we provide our own default values
+    for `indent` (`2`) and `sort_dicts` (`False`). Primarily for debug logging and
+    showing more readable dictionaries.
+
+    'Return the formatted representation of object as a string. indent, width,
+    depth, compact, sort_dicts and underscore_numbers are passed to the
+    PrettyPrinter constructor as formatting parameters' (from pprint
+    documentation).
+    """
+    defaults = [
+        ('indent', 2),
+        ('width', 80),
+        ('depth', None),
+        ('compact', False),
+        ('sort_dicts', False),
+    ]
+    if version_info[0] >= 3 and version_info[1] >= 10:
+        # underscore_numbers only works in 3.10 and up
+        defaults.append(('underscore_numbers', False))
+    kw = {}
+    for tup in defaults:
+        key, default = tup
+        kw[key] = kwargs[key] if key in kwargs else default
+    # newline in front so it's always clean
+    return f"\n{pformat(*args, **kw)}"  # type: ignore

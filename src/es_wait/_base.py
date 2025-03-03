@@ -1,9 +1,7 @@
 """Base Waiter Class"""
 
 import typing as t
-from sys import version_info
 import logging
-from pprint import pformat
 from time import sleep
 from datetime import datetime, timezone
 from .utils import indicator_generator
@@ -53,7 +51,7 @@ class Waiter:
         """
         return False
 
-    def empty_check(self, name: str) -> None:
+    def _ensure_not_none(self, name: str) -> None:
         """
         Raise a :py:exc:`ValueError` if the instance attribute `name` is None. This
         method literally just checks:
@@ -68,35 +66,6 @@ class Waiter:
             msg = f'Keyword arg {name} cannot be None'
             logger.critical(msg)
             raise ValueError(msg)
-
-    def prettystr(self, *args, **kwargs) -> str:
-        """
-        A (nearly) straight up wrapper for :py:meth:`pprint.pformat()
-        <pprint.PrettyPrinter.pformat>`, except that we provide our own default values
-        for `indent` (`2`) and `sort_dicts` (`False`). Primarily for debug logging and
-        showing more readable dictionaries.
-
-        'Return the formatted representation of object as a string. indent, width,
-        depth, compact, sort_dicts and underscore_numbers are passed to the
-        PrettyPrinter constructor as formatting parameters' (from pprint
-        documentation).
-        """
-        defaults = [
-            ('indent', 2),
-            ('width', 80),
-            ('depth', None),
-            ('compact', False),
-            ('sort_dicts', False),
-        ]
-        if version_info[0] >= 3 and version_info[1] >= 10:
-            # underscore_numbers only works in 3.10 and up
-            defaults.append(('underscore_numbers', False))
-        kw = {}
-        for tup in defaults:
-            key, default = tup
-            kw[key] = kwargs[key] if key in kwargs else default
-
-        return f"\n{pformat(*args, **kw)}"  # newline in front so it's always clean
 
     def wait(self, frequency: int = 5) -> None:
         """

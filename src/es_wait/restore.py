@@ -3,6 +3,7 @@
 import typing as t
 import logging
 from ._base import Waiter
+from .utils import prettystr
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
@@ -27,7 +28,7 @@ class Restore(Waiter):
             index_list = []
         #: The list of indices being restored
         self.index_list = index_list
-        self.empty_check('index_list')
+        self._ensure_not_none('index_list')
         self.waitstr = 'for indices in index_list to be restored from snapshot'
         logger.debug('Waiting %s...', self.waitstr)
 
@@ -84,8 +85,8 @@ class Restore(Waiter):
                 logger.debug('_recovery API returned an empty response. Trying again.')
                 return False
             response.update(chunk_response)
-        logger.debug('Provided indices: %s', self.prettystr(self.index_list))
-        logger.debug('Found indices: %s', self.prettystr(list(response.keys())))
+        logger.debug('Provided indices: %s', prettystr(self.index_list))
+        logger.debug('Found indices: %s', prettystr(list(response.keys())))
         for index, data in response.items():
             for shard in data['shards']:
                 stage = shard['stage']
@@ -112,7 +113,7 @@ class Restore(Waiter):
         except Exception as err:
             msg = (
                 f'Unable to obtain recovery information for specified indices {chunk}. '
-                f'Error: {self.prettystr(err)}'
+                f'Error: {prettystr(err)}'
             )
             raise ValueError(msg) from err
         return chunk_response

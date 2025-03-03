@@ -35,7 +35,7 @@ class Index(Waiter):
             logger.error(msg)
             raise ValueError(msg)
         self.index = index
-        self.empty_check('index')
+        self._ensure_not_none('index')
         self.resolve_index()
         self.waitstr = self.getwaitstr
         self.do_health_report = True

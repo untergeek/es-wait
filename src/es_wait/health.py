@@ -40,7 +40,7 @@ class Health(Waiter):
             )
             logger.error(msg)
             raise ValueError(msg)
-        self.empty_check('action')
+        self._ensure_not_none('action')
         self.waitstr = self.getwaitstr
         self.do_health_report = True
         logger.debug('Waiting %s...', self.waitstr)

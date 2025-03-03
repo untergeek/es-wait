@@ -3,6 +3,7 @@
 import typing as t
 import logging
 from ._base import Waiter
+from .utils import prettystr
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
@@ -28,8 +29,8 @@ class Snapshot(Waiter):
         self.snapshot = snapshot
         #: The repository name
         self.repository = repository
-        self.empty_check('snapshot')
-        self.empty_check('repository')
+        self._ensure_not_none('snapshot')
+        self._ensure_not_none('repository')
         self.waitstr = f'for snapshot "{self.snapshot}" to complete'
         logger.debug('Waiting %s...', self.waitstr)
 
@@ -75,7 +76,7 @@ class Snapshot(Waiter):
         except Exception as err:
             raise ValueError(
                 f'Unable to obtain information for snapshot "{self.snapshot}" in '
-                f'repository "{self.repository}". Error: {self.prettystr(err)}'
+                f'repository "{self.repository}". Error: {prettystr(err)}'
             ) from err
         return result
 

@@ -7,6 +7,7 @@ from time import localtime, strftime
 from dotmap import DotMap  # type: ignore
 from elasticsearch8.exceptions import GeneralAvailabilityWarning
 from ._base import Waiter
+from .utils import prettystr
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
@@ -38,7 +39,7 @@ class Task(Waiter):
             raise ValueError(msg)
         #: The task identification string
         self.task_id = task_id
-        self.empty_check('task_id')
+        self._ensure_not_none('task_id')
         #: The :py:meth:`tasks.get() <elasticsearch.client.TasksClient.get>` results
         self.task_data = None
         #: The contents of :py:attr:`task_data['task'] <task_data>`
@@ -82,8 +83,8 @@ class Task(Waiter):
         except Exception as err:
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
-                f'Response: {self.prettystr(response)} -- '
-                f'Exception: {self.prettystr(err)}'
+                f'Response: {prettystr(response)} -- '
+                f'Exception: {prettystr(err)}'
             )
             logger.error(msg)
             raise ValueError(msg) from err
@@ -102,17 +103,17 @@ class Task(Waiter):
         """
         if self.task.action == 'indices:data/write/reindex':  # type: ignore
             # logger.debug("It's a REINDEX task")
-            # logger.debug('TASK_DATA: %s', self.prettystr(self.task_data.toDict()))
+            # logger.debug('TASK_DATA: %s', prettystr(self.task_data.toDict()))
             # logger.debug(
             #     'TASK_DATA keys: %s',
-            #     self.prettystr(list(self.task_data.toDict().keys())),
+            #     prettystr(list(self.task_data.toDict().keys())),
             # )
             if self.task_data.response.failures:  # type: ignore
                 if len(self.task_data.response.failures) > 0:  # type: ignore
                     _ = self.task_data.response.failures  # type: ignore
                     msg = (
                         f'Failures found in the {self.action} response: '
-                        f'{self.prettystr(_)}'
+                        f'{prettystr(_)}'
                     )
                     raise ValueError(msg)
 
@@ -143,7 +144,7 @@ class Task(Waiter):
         else:
             # Log the task status here.
             _ = self.task_data.toDict()  # type: ignore
-            logger.debug('Full Task Data: %s', self.prettystr(_))
+            logger.debug('Full Task Data: %s', prettystr(_))
             msg = (
                 f'Task "{self.task.description}" with task_id '  # type: ignore
                 f'"{self.task_id}" has been running for {running_time} seconds'
