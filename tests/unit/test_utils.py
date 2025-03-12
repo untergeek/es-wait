@@ -157,7 +157,7 @@ def test_health_report_non_green(caplog):
     }
     data = ObjectApiResponse(body, META)
     health_report(data)
-    assert "HEALTH REPORT: STATUS: {'RED'}" in caplog.text
+    assert "HEALTH REPORT: STATUS: RED" in caplog.text
     assert "INDICATOR: test_ind: SYMPTOM: symptom1" in caplog.text
 
 
