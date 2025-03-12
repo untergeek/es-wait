@@ -21,6 +21,7 @@ classifiers = [
   'Programming Language :: Python :: 3.10',
   'Programming Language :: Python :: 3.11',
   'Programming Language :: Python :: 3.12',
+  'Programming Language :: Python :: 3.13',
 ]
 keywords = [
     'elasticsearch',
@@ -74,12 +75,12 @@ cov = [
 
 # Test environment
 [[tool.hatch.envs.test.matrix]]
-python = ['3.8', '3.9', '3.10', '3.11', '3.12']
+python = ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
 
 [tool.hatch.envs.test.scripts]
 test = 'pytest'
 test-cov = 'pytest --cov=es_wait'
-cov-report = 'pytest --cov=es_wait --cov-report html:cov_html'
+cov-report = 'pytest --cov=es_wait --cov-report=term-missing html:cov_html'
 
 [tool.hatch.envs.lint]
 detached = true
@@ -147,6 +148,15 @@ dependencies = [
     'pytest-cov',
     'python-dotenv==1.0.1',
     'es_client>=8.13.4',
+]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "es_wait/src"]
+minversion = "7.2"
+addopts = "-ra -q"
+testpaths = [
+    "tests/unit",
+    "tests/integration",
 ]
 
 [publish.index.repos.main]
