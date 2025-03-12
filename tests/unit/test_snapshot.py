@@ -1,7 +1,6 @@
 """Unit tests for Snapshot"""
 
-import pytest
-from es_wait import Snapshot
+from es_wait.snapshot import Snapshot
 
 
 class TestSnapshot:
@@ -18,11 +17,7 @@ class TestSnapshot:
         client, kwargs = snapbundle
         client.snapshot.get.side_effect = fake_fail
         sc = Snapshot(client, **kwargs)
-        with pytest.raises(
-            ValueError, match=r'Unable to obtain information for snapshot'
-        ):
-            # pylint: disable=W0104
-            sc.check
+        assert not sc.check()
 
     def test_in_progress(self, snap_resp, snapbundle, snapchk):
         """test_in_progress
@@ -32,7 +27,7 @@ class TestSnapshot:
         client, kwargs = snapbundle
         snapchk(snap_resp(state='IN_PROGRESS'))
         sc = Snapshot(client, **kwargs)
-        assert not sc.check
+        assert not sc.check()
 
     def test_success(self, snap_resp, snapbundle, snapchk):
         """test_success
@@ -42,7 +37,7 @@ class TestSnapshot:
         client, kwargs = snapbundle
         snapchk(snap_resp(state='SUCCESS'))
         sc = Snapshot(client, **kwargs)
-        assert sc.check
+        assert sc.check()
 
     def test_partial(self, snap_resp, snapbundle, snapchk):
         """test_partial
@@ -52,7 +47,7 @@ class TestSnapshot:
         client, kwargs = snapbundle
         snapchk(snap_resp(state='PARTIAL'))
         sc = Snapshot(client, **kwargs)
-        assert sc.check
+        assert sc.check()
 
     def test_failed(self, snap_resp, snapbundle, snapchk):
         """test_failed
@@ -62,7 +57,7 @@ class TestSnapshot:
         client, kwargs = snapbundle
         snapchk(snap_resp(state='FAILED'))
         sc = Snapshot(client, **kwargs)
-        assert sc.check
+        assert sc.check()
 
     def test_other(self, snap_resp, snapbundle, snapchk):
         """test_other
@@ -73,4 +68,4 @@ class TestSnapshot:
         client, kwargs = snapbundle
         snapchk(snap_resp(state='OTHER'))
         sc = Snapshot(client, **kwargs)
-        assert sc.check
+        assert sc.check()

@@ -3,13 +3,13 @@
 import typing as t
 import logging
 from ._base import Waiter
+from .defaults import RESTORE
+from .utils import prettystr
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
 logger = logging.getLogger(__name__)
-
-# pylint: disable=R0913
 
 
 class Restore(Waiter):
@@ -18,18 +18,19 @@ class Restore(Waiter):
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 9.0,
-        timeout: float = -1.0,
+        pause: float = RESTORE.get('pause', 9.0),
+        timeout: float = RESTORE.get('timeout', 7200.0),
+        max_exceptions: int = RESTORE.get('max_exceptions', 10),
         index_list: t.Optional[t.Sequence[str]] = None,
     ) -> None:
-        super().__init__(client=client, pause=pause, timeout=timeout)
-        if not index_list:
-            index_list = []
+        super().__init__(
+            client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
+        )
         #: The list of indices being restored
         self.index_list = index_list
-        self.empty_check('index_list')
+        self._ensure_not_none('index_list')
         self.waitstr = 'for indices in index_list to be restored from snapshot'
-        logger.debug('Waiting %s...', self.waitstr)
+        logger.debug(f'Waiting {self.waitstr}...')
 
     @property
     def index_list_chunks(self) -> t.Sequence[t.Sequence[str]]:
@@ -57,7 +58,6 @@ class Restore(Waiter):
         chunks.append(chunk.split(','))
         return chunks
 
-    @property
     def check(self) -> bool:
         """
         Iterates over a list of indices in batched chunks, and calls
@@ -79,18 +79,24 @@ class Restore(Waiter):
         """
         response = {}
         for chunk in self.index_list_chunks:
-            chunk_response = self.get_recovery(chunk)
+            try:
+                chunk_response = self.get_recovery(chunk)
+            except ValueError as err:
+                self.exceptions_raised += 1
+                logger.error(err)
+                return False
             if not chunk_response:
                 logger.debug('_recovery API returned an empty response. Trying again.')
+                self.exceptions_raised += 1  # Repeated empties as exceptions
                 return False
             response.update(chunk_response)
-        logger.debug('Provided indices: %s', self.prettystr(self.index_list))
-        logger.debug('Found indices: %s', self.prettystr(list(response.keys())))
+        logger.debug(f'Provided indices: {prettystr(self.index_list)}')
+        logger.debug(f'Found indices: {prettystr(list(response.keys()))}')
         for index, data in response.items():
             for shard in data['shards']:
                 stage = shard['stage']
                 if stage != 'DONE':
-                    logger.debug('Index %s is still in stage %s', index, stage)
+                    logger.debug(f'Index {index} is still in stage {stage}')
                     return False
 
         # If we've gotten here, all of the indices have recovered
@@ -112,7 +118,7 @@ class Restore(Waiter):
         except Exception as err:
             msg = (
                 f'Unable to obtain recovery information for specified indices {chunk}. '
-                f'Error: {self.prettystr(err)}'
+                f'Error: {prettystr(err)}'
             )
             raise ValueError(msg) from err
         return chunk_response

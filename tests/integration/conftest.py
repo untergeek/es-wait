@@ -2,11 +2,12 @@
 
 # pylint: disable=missing-function-docstring,redefined-outer-name,R0913
 import typing as t
-from os import environ
+from os import environ, path
 from datetime import datetime, timezone
 import random
 import string
 import pytest
+from dotenv import load_dotenv
 from elasticsearch8.exceptions import NotFoundError
 from es_client import Builder
 from es_client.helpers.logging import set_logging
@@ -18,10 +19,13 @@ LOGLEVEL = 'DEBUG'
 @pytest.fixture(scope='session')
 def client():
     """Return an Elasticsearch client"""
-    host = environ.get('TEST_ES_SERVER')
-    user = environ.get('TEST_USER')
-    pswd = environ.get('TEST_PASS')
-    cacrt = environ.get('CA_CRT')
+    project_root = path.abspath(path.join(path.dirname(__file__), '..'))
+    envpath = path.join(project_root, '.env')
+    load_dotenv(dotenv_path=envpath)
+    host = environ.get('TEST_ES_SERVER', None)
+    user = environ.get('TEST_USER', None)
+    pswd = environ.get('TEST_PASS', None)
+    cacrt = environ.get('CA_CRT', None)
     file = environ.get('ES_CLIENT_FILE', None)  # Path to es_client YAML config
     repo = environ.get('TEST_ES_REPO', 'found-snapshots')
     if file:
@@ -105,8 +109,8 @@ def settings(defaults, prefix, repo, uniq):
 
 
 @pytest.fixture(scope='class')
-def skip_no_repo(repo) -> None:
-    def _skip_no_repo(skip_it: bool) -> None:
+def skip_no_repo(repo):
+    def _skip_no_repo(skip_it: bool):
         if skip_it:
             if not repo:
                 pytest.skip('No snapshot repository', allow_module_level=True)
@@ -115,8 +119,8 @@ def skip_no_repo(repo) -> None:
 
 
 @pytest.fixture(scope='class')
-def skip_localhost() -> None:
-    def _skip_localhost(skip_it: bool) -> None:
+def skip_localhost():
+    def _skip_localhost(skip_it: bool):
         if skip_it:
             host = environ.get('TEST_ES_SERVER')
             file = environ.get('ES_CLIENT_FILE', None)  # Path to es_client YAML config

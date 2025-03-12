@@ -1,39 +1,34 @@
 """Base Waiter Class"""
 
 import typing as t
-from sys import version_info
 import logging
-from pprint import pformat
 from time import sleep
 from datetime import datetime, timezone
-from .utils import indicator_generator
+from elasticsearch8.exceptions import TransportError
+from .defaults import BASE
+from .exceptions import EsWaitFatal, EsWaitTimeout, ExceptionCount
+from .utils import health_report
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
 logger = logging.getLogger('es_wait.Waiter')
 
-# pylint: disable=R0912,R1702
 
+class TimeTracker:
+    """Track time for the Waiter class"""
 
-class Waiter:
-    """Waiter Parent Class"""
+    def __init__(self, log_frequency: int = 5) -> None:
+        self.log_frequency = log_frequency
+        self.start_time = self.now
 
-    def __init__(
-        self,
-        client: 'Elasticsearch',
-        pause: float = 9.0,  # The delay between checks
-        timeout: float = -1.0,  # How long is too long
-    ) -> None:
-        #: An :py:class:`Elasticsearch <elasticsearch.Elasticsearch>` client instance
-        self.client = client
-        #: The delay between checks for completion
-        self.pause = pause
-        #: The number of seconds before giving up. -1 means no timeout.
-        self.timeout = timeout
-        self.waitstr = 'for Waiter class to initialize'
-        #: Only changes to True in certain circumstances
-        self.do_health_report = False
+    @property
+    def elapsed(self) -> float:
+        """
+        :getter: Returns the elapsed time in seconds
+        :type: float
+        """
+        return (self.now - self.start_time).total_seconds()
 
     @property
     def now(self) -> datetime:
@@ -44,6 +39,60 @@ class Waiter:
         return datetime.now(timezone.utc)
 
     @property
+    def should_log(self) -> bool:
+        """
+        Determine if a log message should be generated based on the elapsed time
+        and frequency. If the elapsed time is 0, then no log message will be
+        generated.
+
+        :rtype: bool
+        :return: Whether a log message should be generated.
+        """
+        if int(self.elapsed) == 0:
+            return False
+        return int(self.elapsed) % self.log_frequency == 0  # Only frequency seconds
+
+
+class Waiter:
+    """Waiter Parent Class"""
+
+    def __init__(
+        self,
+        client: 'Elasticsearch',
+        pause: float = BASE.get('pause', 9.0),  # The delay between checks
+        timeout: float = BASE.get('timeout', 15.0),  # How long is too long
+        max_exceptions: int = BASE.get(
+            'max_exceptions', 10
+        ),  # The maximum number of exceptions to allow
+    ) -> None:
+        #: An :py:class:`Elasticsearch <elasticsearch.Elasticsearch>` client instance
+        self.client = client
+        #: The delay between checks for completion
+        self.pause = pause
+        #: The number of seconds before giving up. -1 means no timeout.
+        self.timeout = timeout
+        #: The maximum number of exceptions to allow
+        self.max_exceptions = max_exceptions
+        #: The number of exceptions raised
+        self.exceptions_raised = 0
+        self.waitstr = 'for Waiter class to initialize'
+        #: Only changes to True in certain circumstances
+        self.do_health_report = False
+
+    @property
+    def exception_count_msg(self) -> str:
+        """
+        This property returns a messgage showing the current number of exceptions
+        raised and the maximum number of exceptions allowed.
+
+        :getter: Returns 'X exceptions raised out of Y allowed'
+        :type: str
+        """
+        return (
+            f'{self.exceptions_raised} exceptions raised out of '
+            f'{self.max_exceptions} allowed'
+        )
+
     def check(self) -> bool:
         """
         This will be redefined by each child class
@@ -53,7 +102,7 @@ class Waiter:
         """
         return False
 
-    def empty_check(self, name: str) -> None:
+    def _ensure_not_none(self, name: str) -> None:
         """
         Raise a :py:exc:`ValueError` if the instance attribute `name` is None. This
         method literally just checks:
@@ -69,34 +118,15 @@ class Waiter:
             logger.critical(msg)
             raise ValueError(msg)
 
-    def prettystr(self, *args, **kwargs) -> str:
+    def too_many_exceptions(self) -> None:
         """
-        A (nearly) straight up wrapper for :py:meth:`pprint.pformat()
-        <pprint.PrettyPrinter.pformat>`, except that we provide our own default values
-        for `indent` (`2`) and `sort_dicts` (`False`). Primarily for debug logging and
-        showing more readable dictionaries.
-
-        'Return the formatted representation of object as a string. indent, width,
-        depth, compact, sort_dicts and underscore_numbers are passed to the
-        PrettyPrinter constructor as formatting parameters' (from pprint
-        documentation).
+        If the number of exceptions raised is greater than or equal to the maximum
+        number of exceptions allowed, then a :py:exc:`ExceptionCount` will be raised.
         """
-        defaults = [
-            ('indent', 2),
-            ('width', 80),
-            ('depth', None),
-            ('compact', False),
-            ('sort_dicts', False),
-        ]
-        if version_info[0] >= 3 and version_info[1] >= 10:
-            # underscore_numbers only works in 3.10 and up
-            defaults.append(('underscore_numbers', False))
-        kw = {}
-        for tup in defaults:
-            key, default = tup
-            kw[key] = kwargs[key] if key in kwargs else default
-
-        return f"\n{pformat(*args, **kw)}"  # newline in front so it's always clean
+        if self.exceptions_raised >= self.max_exceptions:
+            msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
+            logger.error(msg)
+            raise ExceptionCount(msg, self.exceptions_raised)
 
     def wait(self, frequency: int = 5) -> None:
         """
@@ -115,30 +145,32 @@ class Waiter:
 
         If :py:attr:`do_health_report` is ``True``, then call
         :py:meth:`client.health_report() <elasticsearch.client.health_report>`
-        and generate many log lines at INFO level showing whatever was found.
+        and pass the results to
+        :py:func:`utils.health_report() <es_wait.utils.health_report>`.
 
         :param frequency: The number of seconds between log reports on progress.
         """
         # Now with this mapped, we can perform the wait as indicated.
-        start_time = self.now
+        tracker = TimeTracker(log_frequency=frequency)
         success = False
-        logger.debug('Only logging every %s seconds', frequency)
+        logger.debug(f'Only logging every {frequency} seconds')
         while True:
-            elapsed = int((self.now - start_time).total_seconds())
-            if elapsed == 0:
-                loggit = False
-            else:
-                loggit = elapsed % frequency == 0  # Only frequency seconds
-            response = self.check
+            try:
+                response = self.check()
+            except ExceptionCount as err:
+                logger.critical(f'{self.exception_count_msg} from {err}')
+                raise EsWaitFatal(
+                    self.exception_count_msg, tracker.elapsed, errors=(err,)
+                ) from err
             # Successfully completed task.
             if response:
-                logger.debug('The wait %s is over.', self.waitstr)
-                total = f'{(self.now - start_time).total_seconds():.2f}'
-                logger.debug('Elapsed time: %s seconds', total)
+                logger.debug(f'The wait {self.waitstr} is over.')
+                total = f'{tracker.elapsed:.2f}'
+                logger.debug(f'Elapsed time: {total} seconds')
                 success = True
                 break
             # Not success, and reached timeout (if defined)
-            if (self.timeout != -1) and (elapsed >= self.timeout):
+            if (self.timeout != -1) and (tracker.elapsed >= self.timeout):
                 msg = (
                     f'The {self.waitstr} did not complete within {self.timeout} '
                     f'seconds.'
@@ -146,29 +178,26 @@ class Waiter:
                 logger.error(msg)
                 break
             # Not timed out and not yet success, so we wait.
-            if loggit:
+            if tracker.should_log:
                 msg = (
-                    f'The wait {self.waitstr} is ongoing. {elapsed} total seconds '
-                    f'have elapsed. Pausing {self.pause} seconds between checks.'
+                    f'The wait {self.waitstr} is ongoing. {tracker.elapsed} '
+                    f'total seconds have elapsed. Pausing {self.pause} seconds '
+                    f'between checks.'
                 )
                 logger.debug(msg)
-            sleep(self.pause)  # Actual wait here
+            sleep(self.pause)
 
         if not success:
             msg = (
-                f'The wait {self.waitstr} failed to complete in the timeout period of '
-                f'{self.timeout} seconds'
+                f'The wait {self.waitstr} failed to complete in the timeout '
+                f'period of {self.timeout} seconds'
             )
             logger.error(msg)
+            timeout = EsWaitTimeout(msg, tracker.elapsed, self.timeout)
             if self.do_health_report:
-                rpt = dict(self.client.health_report())
-                if rpt['status'] != 'green':
-                    logger.info('HEALTH REPORT: STATUS: %s', {rpt['status'].upper()})
-                    inds = rpt['indicators']
-                    for ind in inds:
-                        if isinstance(ind, str):
-                            if inds[ind]['status'] != 'green':
-                                for line in indicator_generator(ind, inds[ind]):
-                                    logger.info('HEALTH REPORT: %s', line)
-
-            raise TimeoutError(msg)
+                try:
+                    health_report(self.client.health_report())
+                except TransportError as exc:
+                    fail = f'Health report failed: {exc}'
+                    logger.error(fail)
+            raise timeout

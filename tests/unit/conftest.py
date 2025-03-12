@@ -2,7 +2,8 @@
 
 # pylint: disable=missing-function-docstring,redefined-outer-name,R0913
 
-from unittest.mock import Mock
+from unittest.mock import MagicMock, patch
+import datetime
 from random import randrange
 from dotmap import DotMap
 import pytest
@@ -26,11 +27,12 @@ CLUSTER_HEALTH = {
     "task_max_waiting_in_queue_millis": 0,
     "active_shards_percent_as_number": 100,
 }
+FAKE_FAIL = Exception('Simulated Failure')
+FAKE_TIME = datetime.datetime(2020, 12, 25, 17, 5, 55)
+GENERIC_TASK = {'task': 'I0ekFjMhSPCQz7FUs1zJOg:54510686'}
 INDEX_HEALTH = [{"health": "green"}]
 INDEX_NAME = 'index_name'
 INDEX_RESOLVE = {'indices': [{'name': INDEX_NAME}], 'aliases': [], 'data_streams': []}
-FAKE_FAIL = Exception('Simulated Failure')
-GENERIC_TASK = {'task': 'I0ekFjMhSPCQz7FUs1zJOg:54510686'}
 NAMED_INDICES = ["index-2015.01.01", "index-2015.02.01"]
 SNAP_NAME = 'snap_name'
 REPO_NAME = 'fake_repo'
@@ -61,7 +63,7 @@ def chunky_list():
 
 @pytest.fixture(scope='function')
 def client():
-    return Mock()
+    return MagicMock()
 
 
 @pytest.fixture(scope='function')
@@ -94,6 +96,11 @@ def existschk(client):
 @pytest.fixture(scope='function')
 def fake_fail():
     return FAKE_FAIL
+
+
+@pytest.fixture(scope='function')
+def meta404():
+    return ApiResponseMeta(404, '1.1', {}, 0.01, None)
 
 
 @pytest.fixture(scope='function')
@@ -148,7 +155,7 @@ def ilm_test(client, named_index):
         if phase is not None:
             ic = IlmPhase(client, name=named_index, phase=phase)
 
-        return bool(ic.check is result)
+        return bool(ic.check() is result)
 
     return _ilm_test
 
@@ -197,7 +204,7 @@ def relocate_test(client, named_index, relocatechk):
     def _relocate_test(state: str = None, count: int = 1, result: bool = False):
         relocatechk(state, count)
         rc = Relocate(client, name=named_index)
-        return bool(rc.check is result)
+        return bool(rc.check() is result)
 
     return _relocate_test
 
@@ -243,7 +250,7 @@ def restore_test(client, chunky_list, named_indices, restorechk, restorevals):
         else:
             restorechk(restorevals(val))
             rc = Restore(client, index_list=named_indices)
-        return bool(rc.check is boolval)
+        return bool(rc.check() is boolval)
 
     return _restore_test
 
@@ -335,3 +342,43 @@ def taskmaster(proto_task):
         return test_task
 
     return _taskmaster
+
+
+@pytest.fixture(scope='function')
+def base_client():
+    """
+    Create a mocked Elasticsearch client.
+    """
+    client = MagicMock()
+    return client
+
+
+@pytest.fixture(scope='function')
+def health_client():
+    """
+    Create a mocked Elasticsearch client for 'Health' with default the default
+    response set to {'status': 'green'}.
+    """
+    client = MagicMock()
+    client.cluster.health.return_value = {'status': 'green'}
+    return client
+
+
+@pytest.fixture(scope='function')
+def exists_client():
+    """
+    Create a mocked Elasticsearch client for 'Exists' with default responses
+    set to True.
+    """
+    client = MagicMock()
+    client.indices.exists.return_value = True
+    client.indices.exists_index_template.return_value = True
+    client.cluster.exists_component_template.return_value = True
+    return client
+
+
+# Mock datetime for consistent timing
+@pytest.fixture
+def mock_datetime():
+    with patch('es_wait._base.datetime') as mock_dt:
+        yield mock_dt

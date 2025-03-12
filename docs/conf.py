@@ -24,7 +24,7 @@ import os
 from datetime import datetime
 from es_wait import __version__ as ver
 
-COPYRIGHT_YEARS = f"{datetime.now().year}"
+COPYRIGHT_YEARS = f'2024-{datetime.now().year}'
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -68,7 +68,7 @@ if not on_rtd:  # only import and set the theme if we're building docs locally
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3.12", None),
-    "elasticsearch8": ("https://elasticsearch-py.readthedocs.io/en/v8.15.1", None),
+    "elasticsearch8": ("https://elasticsearch-py.readthedocs.io/en/v8.17.1", None),
     "elastic-transport": (
         "https://elastic-transport-python.readthedocs.io/en/stable",
         None,
