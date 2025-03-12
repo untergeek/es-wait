@@ -3,7 +3,7 @@
 # pylint: disable=W0621
 from unittest.mock import MagicMock
 import pytest
-from elasticsearch import TransportError
+from elasticsearch8 import TransportError
 from es_wait.relocate import Relocate
 from es_wait.exceptions import ExceptionCount
 
