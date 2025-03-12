@@ -2,109 +2,110 @@
 
 import typing as t
 import logging
+from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
+from .defaults import EXISTS, ExistsTypes
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
 logger = logging.getLogger(__name__)
 
-# pylint: disable=R0913
-
 
 class Exists(Waiter):
     """Wait for an entity to 'exist' according to Elasticsearch"""
 
-    IDX_OR_DS = ['index', 'data_stream', 'datastream', 'idx', 'ds']
-    TEMPLATE = ['index_template', 'template', 'tmpl']
-    COMPONENT = ['component_template', 'component', 'comp']
-
+    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 1.5,
-        timeout: float = 15.0,
+        pause: float = EXISTS.get('pause', 1.5),
+        timeout: float = EXISTS.get('timeout', 10.0),
+        max_exceptions: int = EXISTS.get('max_exceptions', 10),
         name: str = '',
-        kind: t.Literal[
-            'index',
-            'data_stream',
-            'index_template',
-            'template',
-            'component_template',
-            'component',
-            'undef',
-        ] = 'undef',
+        kind: ExistsTypes = 'index',
     ) -> None:
-
-        super().__init__(client=client, pause=pause, timeout=timeout)
+        super().__init__(
+            client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
+        )
+        #: The maximum number of exceptions to allow
+        self.max_exceptions = max_exceptions
+        #: The number of exceptions raised
+        self.exceptions_raised = 0
         #: The entity name
         self.name = name
+        if kind not in EXISTS['types']:
+            msg = f'kind must be one of {", ".join(EXISTS["types"])}'
+            logger.error(msg)
+            raise ValueError(msg)
         #: What kind of entity
         self.kind = kind
         self._ensure_not_none('name')
-        if kind == 'undef':
-            msg = (
-                'kind must be one of index, data_stream, index_template, '
-                'template, component_template, or component'
-            )
-            logger.error(msg)
-            raise ValueError(msg)
-        self.waitstr = f'for {self.kindmap} "{name}" to exist'
-        logger.debug('Waiting %s...', self.waitstr)
+        self.waitstr = f'for {kind} "{name}" to exist'
+        logger.debug(f'Waiting {self.waitstr}...')
 
-    @property
     def check(self) -> bool:
         """
-        Check if the named entity exists, based on :py:attr:`kind` and :py:attr:`name`.
+        Check if the named entity exists in Elasticsearch. The proper function
+        call is returned by :py:meth:`func_map() <es_wait.exists.func_map>`, which
+        returns a tuple of the function to call and the keyword arguments to pass
+        to that function.
+
+            - 'index': Checks for an index using
+                :py:meth:`indices.exists() <elasticsearch.client.IndicesClient.exists>`
+            - 'data_stream': Checks for a data_stream using
+                :py:meth:`indices.exists() <elasticsearch.client.IndicesClient.exists>`
+            - 'index_template': Checks for an index template using
+                :py:meth:`indices.exists_index_template()
+                <elasticsearch.client.IndicesClient.exists_index_template>`
+            - 'component_template': Checks for a component template using
+                :py:meth:`cluster.exists_component_template()
+                <elasticsearch.client.ClusterClient.exists_component_template>`
+
+        Returns:
+            bool: True if the entity exists, False otherwise or if an error occurs.
+        """
+        func, kwargs = self.func_map()
+        self.too_many_exceptions()
+        try:
+            return bool(func(**kwargs))
+        except TransportError as err:
+            self.exceptions_raised += 1
+            msg = f'Error checking for {self.kind} "{self.name}": {err}'
+            logger.error(msg)
+            return False
+
+    def func_map(self) -> t.Tuple[t.Callable, t.Dict]:
+        """
+        This method maps :py:attr:`kind` to the proper function to call based
+        on the kind of entity we're checking and the keyword arguments to pass
+        to that function.
 
         For indices and data_streams, the call is :py:meth:`indices.exists()
-        <elasticsearch.client.IndicesClient.exists>`.
+        <elasticsearch.client.IndicesClient.exists>`. The keyword argument is
+        ``index``, with the value :py:attr:`name`.
 
         For index templates, the call is :py:meth:`indices.exists_index_template()
-        <elasticsearch.client.IndicesClient.exists_index_template>`.
+        <elasticsearch.client.IndicesClient.exists_index_template>`. The keyword
+        argument is ``name``, with the value :py:attr:`name`.
 
         For component templates, it is :py:meth:`cluster.exists_component_template()
-        <elasticsearch.client.ClusterClient.exists_component_template>`.
+        <elasticsearch.client.ClusterClient.exists_component_template>`. The keyword
+        argument is ``name``, with the value :py:attr:`name`.
 
-        The return value is the result of whichever call is made.
-
-        :getter: Returns if the check was complete
-        :type: bool
+        :returns: Tuple of the function to call and the keyword arguments
+        :rtype: tuple
         """
-        doit = {
-            'index or data_stream': {
-                'func': self.client.indices.exists,
-                'kwargs': {'index': self.name},
-            },
-            'index template': {
-                'func': self.client.indices.exists_index_template,
-                'kwargs': {'name': self.name},
-            },
-            'component template': {
-                'func': self.client.cluster.exists_component_template,
-                'kwargs': {'name': self.name},
-            },
-            'FAIL': {'func': False, 'kwargs': {}},
+        _ = {
+            'index': (self.client.indices.exists, {'index': self.name}),
+            'data_stream': (self.client.indices.exists, {'index': self.name}),
+            'index_template': (
+                self.client.indices.exists_index_template,
+                {'name': self.name},
+            ),
+            'component_template': (
+                self.client.cluster.exists_component_template,
+                {'name': self.name},
+            ),
         }
-        return bool(
-            doit[self.kindmap]['func'](**doit[self.kindmap]['kwargs'])  # type: ignore
-        )
-
-    @property
-    def kindmap(
-        self,
-    ) -> t.Literal[
-        'index or data_stream', 'index template', 'component template', 'FAIL'
-    ]:
-        """
-        This method helps map :py:attr:`kind` to the proper 'exists' API call, as well
-        as accurately log what we're checking in :py:meth:`wait` logging.
-        """
-        if self.kind in self.IDX_OR_DS:
-            return 'index or data_stream'
-        if self.kind in self.TEMPLATE:
-            return 'index template'
-        if self.kind in self.COMPONENT:
-            return 'component template'
-        logger.error('%s is not an acceptable value for kind', self.kind)
-        return 'FAIL'  # We should not see this, like, ever
+        return _[self.kind]  # __init__ ensures self.kind is valid

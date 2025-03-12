@@ -38,16 +38,10 @@ Contents
 --------
 
 .. toctree::
-   waiter
-   exists
-   health
-   index_health
-   ilm
-   relocate
-   restore
-   snapshot
-   task
+   classes
    exceptions
+   defaults
+   utils
    :maxdepth: 1
 
 Indices and tables

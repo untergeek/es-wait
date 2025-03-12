@@ -3,6 +3,7 @@
 import typing as t
 import logging
 from ._base import Waiter
+from .defaults import SNAPSHOT
 from .utils import prettystr
 
 if t.TYPE_CHECKING:
@@ -10,21 +11,23 @@ if t.TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# pylint: disable=R0913
-
 
 class Snapshot(Waiter):
     """Wait for a snapshot to complete"""
 
+    # pylint: disable=R0913
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = 9.0,
-        timeout: float = -1.0,
+        pause: float = SNAPSHOT.get('pause', 9.0),
+        timeout: float = SNAPSHOT.get('timeout', 7200.0),
+        max_exceptions: int = SNAPSHOT.get('max_exceptions', 10),
         snapshot: str = '',
         repository: str = '',
     ) -> None:
-        super().__init__(client=client, pause=pause, timeout=timeout)
+        super().__init__(
+            client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
+        )
         #: The snapshot name
         self.snapshot = snapshot
         #: The repository name
@@ -33,28 +36,6 @@ class Snapshot(Waiter):
         self._ensure_not_none('repository')
         self.waitstr = f'for snapshot "{self.snapshot}" to complete'
         logger.debug('Waiting %s...', self.waitstr)
-
-    @property
-    def check(self) -> bool:
-        """
-        Get the state of the snapshot from :py:meth:`snapstate` to determine if the
-        snapshot is complete, and if so, with what status.
-
-        If the state is ``IN_PROGRESS``, this method will return ``False``.
-
-        For all other states, it calls :py:meth:`log_completion` to log the final
-        result. It then returns ``True``.
-
-        :getter: Returns if the check was complete
-        :type: bool
-        """
-        state = self.snapstate['snapshots'][0]['state']
-        retval = True
-        if state == 'IN_PROGRESS':
-            retval = False
-        if retval:
-            self.log_completion(state)
-        return retval
 
     @property
     def snapstate(self) -> t.Dict:
@@ -80,6 +61,34 @@ class Snapshot(Waiter):
             ) from err
         return result
 
+    def check(self) -> bool:
+        """
+        Get the state of the snapshot from :py:meth:`snapstate` to determine if the
+        snapshot is complete, and if so, with what status.
+
+        If the state is ``IN_PROGRESS``, this method will return ``False``.
+
+        For all other states, it calls :py:meth:`log_completion` to log the final
+        result. It then returns ``True``.
+
+        :getter: Returns if the check was complete
+        :type: bool
+        """
+        self.too_many_exceptions()
+        try:
+            state = self.snapstate['snapshots'][0]['state']
+            retval = True
+        except ValueError as err:
+            self.exceptions_raised += 1
+            state = 'UNDEFINED'
+            logger.error(err)
+            retval = False
+        if state == 'IN_PROGRESS':
+            retval = False
+        if retval:
+            self.log_completion(state)
+        return retval
+
     def log_completion(self, state: str) -> None:
         """
         Log completion based on ``state``
@@ -95,7 +104,7 @@ class Snapshot(Waiter):
              - Message
            * - ``SUCCESS``
              - ``INFO``
-             - Snapshot [`name`] successfully completed.
+             - Snapshot [`name`] completed with state SUCCESS.
            * - ``PARTIAL``
              - ``WARNING``
              - Snapshot [`name`] completed with state PARTIAL.
@@ -108,11 +117,7 @@ class Snapshot(Waiter):
 
         :param state: The snapshot state
         """
-        if state == 'SUCCESS':
-            logger.info('Snapshot %s successfully completed.', self.snapshot)
-        elif state == 'PARTIAL':
-            logger.warning('Snapshot %s completed with state PARTIAL.', self.snapshot)
-        elif state == 'FAILED':
-            logger.error('Snapshot %s completed with state FAILED.', self.snapshot)
-        else:
-            logger.warning('Snapshot %s completed with state: %s', self.snapshot, state)
+        msg = f'Snapshot {self.snapshot} completed with state: {state}'
+        statemap = {'SUCCESS': logger.info, 'FAILED': logger.error}
+        logfunc = statemap.get(state, logger.warning)
+        logfunc(msg)

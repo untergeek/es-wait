@@ -1,9 +1,8 @@
 """Top-level init file"""
 
-__version__ = '0.9.4'
+__version__ = '0.10.0'
 from .exists import Exists
 from .health import Health
-from .index import Index
 from .ilm import IlmPhase, IlmStep
 from .relocate import Relocate
 from .restore import Restore
@@ -13,7 +12,6 @@ from .task import Task
 __all__ = [
     'Exists',
     'Health',
-    'Index',
     'IlmPhase',
     'IlmStep',
     'Relocate',

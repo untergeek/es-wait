@@ -1,8 +1,15 @@
 """Helper and Utility Functions"""
 
 import typing as t
+import logging
 from sys import version_info
 from pprint import pformat
+from .defaults import HealthCheckDict
+
+if t.TYPE_CHECKING:
+    from elastic_transport import ObjectApiResponse
+
+logger = logging.getLogger('es_wait.utils')
 
 
 def diagnosis_generator(ind: str, data: t.Sequence) -> t.Generator:
@@ -44,6 +51,79 @@ def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
                 yield line
         else:
             yield f'INDICATOR: {ind}: {key.upper()}: {data[key]}'
+
+
+def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> bool:
+    """
+    Check the health check data from
+    :py:meth:`client.health_check() <elasticsearch.client.health_check>`.
+
+    If multiple keys are provided in `check_for`, all must key/value pairs must
+    match for a ``True`` response.
+
+    If the expected response(s) are in the data, return True, otherwise False.
+    Debug log the results.
+
+    :param data: The health check data
+    :type data: :py:obj:`ObjectApiResponse <elastic_transport.ObjectApiResponse>`
+
+    :param check_for: The expected response
+    :type check_for: HealthCheckDict
+
+    :returns: True if the expected response is in the data, otherwise False
+    :rtype: bool
+    """
+    output = dict(data)
+    check = True
+    for key, value in check_for.items():
+        # First, verify that the key is in output
+        if key not in output:
+            raise KeyError(f'Key "{key}" not in cluster health output')
+        # Verify that the output matches the expected value
+        if output[key] != value:
+            msg = (
+                f'NO MATCH: Value for key "{value}", health check output: '
+                f'{output[key]}'
+            )
+            check = False  # We do not match
+        else:
+            msg = (
+                f'MATCH: Value for key "{value}", health check output: '
+                f'{output[key]}'
+            )
+        logger.debug(msg)
+    return check
+
+
+def health_report(data: "ObjectApiResponse") -> None:
+    """
+    Log the health report data from
+    :py:meth:`client.health_report() <elasticsearch.client.health_report>`.
+
+    :param data: The health report data
+    :type data: :py:obj:`ObjectApiResponse <elastic_transport.ObjectApiResponse>`
+    """
+    rpt = dict(data)
+
+    try:
+        if rpt['status'] != 'green':
+            logger.info(f'HEALTH REPORT: STATUS: {rpt['status'].upper()}')
+            loop_health_indicators(rpt['indicators'])
+    except KeyError as err:
+        logger.error(f'Health report data: {rpt}, error: {prettystr(err)}')
+
+
+def loop_health_indicators(inds: t.Dict) -> None:
+    """
+    Loop through the indicators and log the data
+    :param inds: The health report indicators
+    :type inds: dict
+    """
+    for ind in inds:
+        if isinstance(ind, str):
+            if inds[ind]['status'] != 'green':
+                for line in indicator_generator(ind, inds[ind]):
+                    logger.info(f'HEALTH REPORT: {line}')
 
 
 def prettystr(*args, **kwargs) -> str:
