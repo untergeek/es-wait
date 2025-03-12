@@ -107,7 +107,7 @@ def health_report(data: "ObjectApiResponse") -> None:
 
     try:
         if rpt['status'] != 'green':
-            logger.info(f'HEALTH REPORT: STATUS: {rpt['status'].upper()}')
+            logger.info(f"HEALTH REPORT: STATUS: {rpt['status'].upper()}")
             loop_health_indicators(rpt['indicators'])
     except KeyError as err:
         logger.error(f'Health report data: {rpt}, error: {prettystr(err)}')
