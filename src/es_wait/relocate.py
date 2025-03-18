@@ -53,8 +53,6 @@ class Relocate(Waiter):
         #: The index name
         self.name = name
         self._ensure_not_none('name')
-        self.max_exceptions = max_exceptions
-        self.exceptions_raised = 0
         self.waitstr = f'for index "{self.name}" to finish relocating'
         logger.debug(f'Waiting {self.waitstr}...')
 
@@ -80,8 +78,9 @@ class Relocate(Waiter):
                 all(shard['state'] == "STARTED" for shard in shards)
                 for shards in _.values()
             )
-        except KeyError:
+        except KeyError as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'KeyError in finished_state for index "{self.name}"')
             return False
 
@@ -121,6 +120,7 @@ class Relocate(Waiter):
             #                    "state": "SHARD_STATE",
         except TransportError as exc:
             self.exceptions_raised += 1
+            self.add_exception(exc)  # Append the error to self._exceptions
             logger.critical(f'{msg} because of {exc}')
             return {}
 
@@ -129,6 +129,7 @@ class Relocate(Waiter):
             return result['routing_table']['indices'][self.name]['shards']
         except KeyError as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'{msg} because of {err}')
             return {}
 
@@ -145,6 +146,7 @@ class Relocate(Waiter):
             finished = self.finished_state
         except (TransportError, KeyError) as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error checking for index "{self.name}": {err}')
             finished = False
         if finished:

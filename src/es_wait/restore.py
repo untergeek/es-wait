@@ -2,6 +2,7 @@
 
 import typing as t
 import logging
+from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
 from .defaults import RESTORE
 from .utils import prettystr
@@ -83,6 +84,7 @@ class Restore(Waiter):
                 chunk_response = self.get_recovery(chunk)
             except ValueError as err:
                 self.exceptions_raised += 1
+                self.add_exception(err)  # Append the error to self._exceptions
                 logger.error(err)
                 return False
             if not chunk_response:
@@ -112,13 +114,30 @@ class Restore(Waiter):
         response.
 
         :param chunk: A list of index names
+        :type chunk: list
+
+        :raises ValueError: If the indices are not recoverable
+
+        :returns: The response from the recovery API for the provided chunk
+        :rtype: dict
         """
+        chunk_response = {}
         try:
             chunk_response = dict(self.client.indices.recovery(index=chunk, human=True))
+        except TransportError as err:
+            msg = (
+                f'Restore.get_recovery: Unable to obtain recovery information for '
+                f'specified indices {chunk}. Elasticsearch TransportError: '
+                f'{prettystr(err)}'
+            )
+            logger.warning(msg)
+            self.add_exception(err)  # Append the error to self._exceptions
+        # pylint: disable=broad-except
         except Exception as err:
             msg = (
-                f'Unable to obtain recovery information for specified indices {chunk}. '
-                f'Error: {prettystr(err)}'
+                f'Restore.get_recovery: Unable to obtain recovery information for '
+                f'specified indices {chunk}. Error: {prettystr(err)}'
             )
-            raise ValueError(msg) from err
+            logger.warning(msg)
+            self.add_exception(err)  # Append the error to self._exceptions
         return chunk_response

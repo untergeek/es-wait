@@ -25,13 +25,26 @@ class Exists(Waiter):
         name: str = '',
         kind: ExistsTypes = 'index',
     ) -> None:
+        """Init the Exists class
+
+        :param client: The Elasticsearch client
+        :type client: Elasticsearch
+        :param pause: The delay between checks. Default is 1.5
+        :type pause: float
+        :param timeout: How long is too long. Default is 10.0
+        :type timeout: float
+        :param max_exceptions: The maximum number of exceptions to allow. Default is 10
+        :type max_exceptions: int
+        :param name: The entity name
+        :type name: str
+        :param kind: What kind of entity
+        :type kind: ExistsTypes
+
+        :raises ValueError: If kind is not one of the valid types
+        """
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        #: The maximum number of exceptions to allow
-        self.max_exceptions = max_exceptions
-        #: The number of exceptions raised
-        self.exceptions_raised = 0
         #: The entity name
         self.name = name
         if kind not in EXISTS['types']:
@@ -71,6 +84,7 @@ class Exists(Waiter):
             return bool(func(**kwargs))
         except TransportError as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             msg = f'Error checking for {self.kind} "{self.name}": {err}'
             logger.error(msg)
             return False

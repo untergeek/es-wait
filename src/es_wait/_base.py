@@ -6,8 +6,14 @@ from time import sleep
 from datetime import datetime, timezone
 from elasticsearch8.exceptions import TransportError
 from .defaults import BASE
-from .exceptions import EsWaitFatal, EsWaitTimeout, ExceptionCount
-from .utils import health_report
+from .exceptions import (
+    EsWaitException,
+    EsWaitFatal,
+    EsWaitTimeout,
+    ExceptionCount,
+    IlmWaitError,
+)
+from .utils import health_report, prettystr
 
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
@@ -73,6 +79,8 @@ class Waiter:
         self.timeout = timeout
         #: The maximum number of exceptions to allow
         self.max_exceptions = max_exceptions
+        #: A list of exceptions raised during the wait
+        self._exceptions = []
         #: The number of exceptions raised
         self.exceptions_raised = 0
         self.waitstr = 'for Waiter class to initialize'
@@ -92,6 +100,25 @@ class Waiter:
             f'{self.exceptions_raised} exceptions raised out of '
             f'{self.max_exceptions} allowed'
         )
+
+    @property
+    def exceptions(self) -> list:
+        """
+        This property returns a list of exceptions raised during the wait.
+
+        :getter: Returns a list of exceptions raised
+        :type: list
+        """
+        return self._exceptions
+
+    def add_exception(self, value: Exception) -> None:
+        """
+        This method appends `value` the exceptions list.
+
+        :param value: An exception to add
+        :type value: Exception
+        """
+        self._exceptions.append(value)
 
     def check(self) -> bool:
         """
@@ -126,7 +153,7 @@ class Waiter:
         if self.exceptions_raised >= self.max_exceptions:
             msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
             logger.error(msg)
-            raise ExceptionCount(msg, self.exceptions_raised)
+            raise ExceptionCount(msg, self.exceptions_raised, tuple(self.exceptions))
 
     def wait(self, frequency: int = 5) -> None:
         """
@@ -160,8 +187,15 @@ class Waiter:
             except ExceptionCount as err:
                 logger.critical(f'{self.exception_count_msg} from {err}')
                 raise EsWaitFatal(
-                    self.exception_count_msg, tracker.elapsed, errors=(err,)
+                    self.exception_count_msg, tracker.elapsed, tuple(self.exceptions)
                 ) from err
+            except (
+                EsWaitException,
+                IlmWaitError,
+            ) as err:  # Catch any other local Exceptions
+                msg = f'An error occurred: {prettystr(err)}'
+                logger.critical(msg)
+                raise EsWaitFatal(msg, tracker.elapsed, tuple(self.exceptions)) from err
             # Successfully completed task.
             if response:
                 logger.debug(f'The wait {self.waitstr} is over.')

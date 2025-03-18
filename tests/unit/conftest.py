@@ -126,26 +126,81 @@ def healthchk(client, cluster_health):
     return _healthchk
 
 
+@pytest.fixture
+def expected(request):
+    return request.param
+
+
 @pytest.fixture(scope='function')
-def ilmresponse(client, ilmexplainer):
-    def _ilmresponse(action=None, phase=None, step=None):
-        retval = ilmexplainer(action, phase, step)
+def phase(request):
+    return request.param
+
+
+@pytest.fixture(scope='function')
+def actual(request):
+    return request.param
+
+
+@pytest.fixture(scope='function')
+def target(request):
+    return request.param
+
+
+@pytest.fixture(scope="function")
+def action(request):
+    if request.param == "complete":
+        return "complete"
+    return "in_progress"
+
+
+@pytest.fixture(scope="function")
+def step(request):
+    if request.param == "complete":
+        return "complete"
+    return "in_progress"
+
+
+@pytest.fixture(scope='function')
+def explainretval(client, fullexplain):
+    def _explainretval(phase=None, action='completed', step='completed'):
+        retval = fullexplain(phase=phase, action=action, step=step)
         client.ilm.explain_lifecycle.return_value = retval
 
-    return _ilmresponse
+    return _explainretval
 
 
 @pytest.fixture(scope='function')
-def ilmexplainer(named_index):
-    def _ilmexplainer(action, phase, step):
-        retval = {
-            'action': action,
-            'phase': phase,
-            'step': step,
-        }
+def fullexplain(indexexplain, named_index):
+    def _fullexplain(phase=None, action='completed', step='completed'):
+        retval = indexexplain(phase=phase, action=action, step=step)
         return {'indices': {named_index: retval}}
 
-    return _ilmexplainer
+    return _fullexplain
+
+
+@pytest.fixture(scope='function')
+def indexexplain():
+    def _indexexplain(phase=None, action='completed', step='completed'):
+        return {
+            'phase': phase,
+            'action': action,
+            'step': step,
+        }
+
+    return _indexexplain
+
+
+@pytest.fixture(scope='function')
+def ilm_phase(client, named_index, explainretval, phase):
+    """Fixture to create an IlmPhase instance with mocked client."""
+    explainretval(action='complete', phase=phase, step='complete')
+    ilm_phase = IlmPhase(client, name=named_index, phase=phase)
+    return ilm_phase
+
+
+@pytest.fixture
+def ilm_completed(fullexplain, phase):
+    return fullexplain(phase=phase, action='complete', step='complete')
 
 
 @pytest.fixture(scope='function')

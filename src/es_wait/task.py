@@ -119,13 +119,13 @@ class Task(Waiter):
         # pylint: disable=broad-except
         except Exception as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
                 f'Response: {prettystr(response)} -- '
                 f'Exception: {prettystr(err)}'
             )
             logger.error(msg)
-            self.exceptions_raised += 1
             return False
         self.task_data = DotMap(response)
         self.task = self.task_data.task  # type: ignore
@@ -133,6 +133,7 @@ class Task(Waiter):
             self.reindex_check()
         except ValueError as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error in reindex_check: {prettystr(err)}')
             return False
         return self.task_complete

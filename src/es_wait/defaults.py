@@ -94,7 +94,7 @@ HEALTH = {
 
 ILM = {
     'pause': DEFAULT_PAUSE,
-    'timeout': 630.0,  # 10.5 minutes, because 10 minutes is the default ILM interval
+    'timeout': 7200.0,
     'max_exceptions': DEFAULT_MAX_EXCEPTIONS,
 }
 """The default values for the ILM class"""

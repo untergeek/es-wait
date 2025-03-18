@@ -1,7 +1,9 @@
 """Unit tests for Restore"""
 
+import logging
 import unittest
 from unittest.mock import MagicMock
+from elasticsearch8 import TransportError
 from es_wait.restore import Restore
 
 
@@ -49,8 +51,49 @@ class TestRestore(unittest.TestCase):
     def test_get_recovery_failure(self):
         """Test that get_recovery raises an exception"""
         self.client.indices.recovery.side_effect = Exception('Test error')
-        with self.assertRaises(ValueError):
-            self.restore.get_recovery(['index1'])
+        assert not self.restore.check()
+
+    def test_check_value_error(self):
+        """Test that check returns False and logs error when ValueError is raised"""
+        self.restore.get_recovery = MagicMock(side_effect=ValueError('Test error'))
+        with self.assertLogs('es_wait.restore', level='ERROR') as log:
+            self.assertFalse(self.restore.check())
+            self.assertIn('ERROR:es_wait.restore:Test error', log.output)
+
+    def test_check_empty_response(self):
+        """Test that check returns False when get_recovery returns an empty response"""
+        self.restore.get_recovery = MagicMock(return_value={})
+        with self.assertLogs('es_wait.restore', level='DEBUG') as log:
+            self.assertFalse(self.restore.check())
+            self.assertIn(
+                'DEBUG:es_wait.restore:_recovery API returned '
+                'an empty response. Trying again.',
+                log.output,
+            )
+
+    def test_check_partial_recovery(self):
+        """Test that check returns False when not all indices are recovered"""
+        self.restore.get_recovery = MagicMock(
+            return_value={
+                'index1': {'shards': [{'stage': 'DONE'}]},
+                'index2': {'shards': [{'stage': 'INIT'}]},
+            }
+        )
+        with self.assertLogs('es_wait.restore', level='DEBUG') as log:
+            self.assertFalse(self.restore.check())
+            self.assertIn(
+                'DEBUG:es_wait.restore:Index index2 is still in stage INIT', log.output
+            )
+
+    def test_check_complete_recovery(self):
+        """Test that check returns True when all indices are recovered"""
+        self.restore.get_recovery = MagicMock(
+            return_value={
+                'index1': {'shards': [{'stage': 'DONE'}]},
+                'index2': {'shards': [{'stage': 'DONE'}]},
+            }
+        )
+        self.assertTrue(self.restore.check())
 
 
 class TestRestoreMore:
@@ -80,42 +123,30 @@ class TestRestoreMore:
         """Ensure that very long lists of indices are properly chunked"""
         assert restore_test('DONE', True, chunktest=True)
 
+    def test_get_recovery_transport_error(self, client, caplog):
+        """
+        Test that get_recovery logs a warning and adds exception on TransportError
+        """
+        caplog.set_level(logging.WARNING)
+        client.indices.recovery.side_effect = TransportError('Test TransportError')
+        rc = Restore(client, index_list=['index1'])
+        assert not rc.check()
+        assert 'Restore.get_recovery: Unable to obtain recovery' in caplog.text
+        assert 'information for specified indices' in caplog.text
+        assert 'index1' in caplog.text
+        assert "TransportError('Test TransportError')" in caplog.text
+        assert rc.exceptions_raised == 1
 
-# @pytest.fixture
-# def client():
-#     return MagicMock()
-
-
-# def test_restore_init_defaults(client):
-#     """Test Restore initialization with default parameters"""
-#     restore = Restore(client=client)
-#     assert restore.client == client
-#     assert restore.pause == 9.0
-#     assert restore.timeout == 7200.0
-#     assert restore.max_exceptions == 10
-#     assert restore.index_list is None
-#     assert restore.waitstr == 'for indices in index_list to be restored from snapshot'
-
-
-# def test_restore_init_custom(client):
-#     """Test Restore initialization with custom parameters"""
-#     index_list = ['index1', 'index2']
-#     restore = Restore(
-#         client=client,
-#         pause=5.0,
-#         timeout=3600.0,
-#         max_exceptions=5,
-#         index_list=index_list,
-#     )
-#     assert restore.client == client
-#     assert restore.pause == 5.0
-#     assert restore.timeout == 3600.0
-#     assert restore.max_exceptions == 5
-#     assert restore.index_list == index_list
-#     assert restore.waitstr == 'for indices in index_list to be restored from snapshot'
-
-
-# def test_restore_init_ensure_not_none(client):
-#     """Test Restore initialization ensures index_list is not None"""
-#     with pytest.raises(ValueError):
-#         Restore(client=client, index_list=None)
+    def test_get_recovery_general_exception(self, client, caplog):
+        """
+        Test that get_recovery logs a warning and adds exception on general Exception
+        """
+        caplog.set_level(logging.WARNING)
+        client.indices.recovery.side_effect = Exception('Test Exception')
+        rc = Restore(client, index_list=['index1'])
+        assert not rc.check()
+        assert 'Restore.get_recovery: Unable to obtain recovery' in caplog.text
+        assert 'information for specified indices' in caplog.text
+        assert 'index1' in caplog.text
+        assert "Exception('Test Exception')" in caplog.text
+        assert rc.exceptions_raised == 1
