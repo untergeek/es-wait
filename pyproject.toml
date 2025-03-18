@@ -139,6 +139,9 @@ exclude = [
     'tests',
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/es_wait"]
+
 [tool.hatch.envs.test]
 dependencies = [
     'coverage[toml]',
@@ -151,7 +154,7 @@ dependencies = [
 ]
 
 [tool.pytest.ini_options]
-pythonpath = [".", "es_wait/src"]
+pythonpath = [".", "src/es_wait"]
 minversion = "7.2"
 addopts = "-ra -q"
 testpaths = [

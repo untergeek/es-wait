@@ -63,10 +63,6 @@ class Health(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        #: The maximum number of exceptions to allow
-        self.max_exceptions = max_exceptions
-        #: The number of exceptions raised
-        self.exceptions_raised = 0
         #: The entity name
         self.check_type = check_type
         if self.check_type == 'cluster_routing' and indices is not None:
@@ -122,5 +118,6 @@ class Health(Waiter):
             return result
         except TransportError as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error checking health: {prettystr(err)}')
             return False

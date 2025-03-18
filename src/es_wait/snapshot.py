@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class Snapshot(Waiter):
     """Wait for a snapshot to complete"""
 
-    # pylint: disable=R0913
+    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
@@ -80,6 +80,7 @@ class Snapshot(Waiter):
             retval = True
         except ValueError as err:
             self.exceptions_raised += 1
+            self.add_exception(err)  # Append the error to self._exceptions
             state = 'UNDEFINED'
             logger.error(err)
             retval = False

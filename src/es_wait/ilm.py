@@ -41,6 +41,24 @@ class IndexLifecycle(Waiter):
         self.name = name
         self._ensure_not_none('name')
 
+    @property
+    def explain(self) -> str:
+        """
+        :getter: Returns the current ilm explain data for the index
+        :type: str
+        """
+        return DotMap(self.get_explain_data())
+
+    @property
+    def phase_complete(self) -> bool:
+        """
+        :getter: Returns True if both action and step for the phase are complete
+        :type: bool
+        """
+        return bool(
+            self.explain.action == 'complete' and self.explain.step == 'complete'
+        )
+
     def get_explain_data(self) -> t.Union[t.Dict, None]:
         """
         This method calls :py:meth:`ilm.explain_lifecycle()
@@ -112,9 +130,103 @@ class IlmPhase(IndexLifecycle):
             f'for "{self.name}" to complete ILM transition to phase "{self.phase}"'
         )
         logger.debug(f'Waiting {self.waitstr}...')
+        self.stuck_count = 0
+        self.advanced = False
 
-    def check(self) -> bool:
+    @property
+    def phase_gte(self) -> bool:
         """
+        :getter: Returns True if the current phase meets or exceeds the target phase
+        :type: bool
+        """
+        return bool(
+            self.phase_by_num(self.explain.phase) >= self.phase_by_num(self.phase)
+        )
+
+    @property
+    def phase_lt(self) -> bool:
+        """
+        :getter: Returns True if the current phase is less the target phase
+        :type: bool
+        """
+        return bool(
+            self.phase_by_num(self.explain.phase) < self.phase_by_num(self.phase)
+        )
+
+    def has_explain(self) -> bool:
+        """Check if the explain data is present
+        :returns: boolean of "The explain data is present"
+        """
+        if not self.explain:
+            logger.warning('No ILM Explain data found.')
+            self.exceptions_raised += 1
+            return False
+        logger.debug(f'ILM Explain data: {self.explain.toDict()}')
+        if not self.explain.phase:
+            logger.warning('No ILM Phase found.')
+            self.exceptions_raised += 1
+            return False
+        return True
+
+    def reached_phase(self) -> bool:
+        """Check if the phase is what we expect
+        :returns: boolean of "The phase reached its target"
+        """
+        if self.phase_gte and self.phase == 'new':
+            logger.debug('ILM Phase: new is complete')
+            return True
+        if self.phase_lt and self.phase_complete:
+            self.stuck_count += 1
+            logger.info(
+                f'ILM Phase: {self.explain.phase} is complete, '
+                f'but expecting {self.phase}. Seen {self.stuck_count} times'
+            )
+            return False
+        if self.phase_lt:
+            logger.debug(f'ILM has not yet reached phase {self.phase}')
+            return False
+        return True  # The phase is now gte to the target phase
+
+    def phase_stuck(self, max_stuck_count: int = 3) -> bool:
+        """Check if the phase is stuck
+        :param int max_stuck_count: The maximum number of times the phase can be stuck
+            before returning raising an exception. Default is 3.
+        :type max_stuck_count: int
+        :returns: boolean of "The phase is stuck"
+        """
+        if self.stuck_count >= max_stuck_count:
+            if self.advanced:
+                msg = (
+                    f'ILM phase {self.phase} was stuck, but was advanced. '
+                    f'Even after advancing, the phase is still stuck.'
+                )
+                logger.error(msg)
+                raise IlmWaitError(msg)
+            msg = (
+                f'Expecting ILM phase {self.phase}, but current phase is '
+                f'{self.explain.phase}, which is complete. ILM phase advance '
+                f'does not appear to be happening after {self.stuck_count} '
+                f'iterations (max retries {max_stuck_count}). Triggering an ILM '
+                f'phase advance to {self.phase}'
+            )
+            logger.warning(msg)
+            # Trigger advance to self.phase
+            curr = {'phase': self.explain.phase, 'action': 'complete'}
+            curr['name'] = 'complete'  # So odd that it's step in the output
+            target = {'phase': self.phase, 'action': 'complete'}
+            target['name'] = 'complete'  # But it's name in the API
+            self.client.ilm.move_to_step(
+                index=self.name, current_step=curr, next_step=target
+            )
+            self.advanced = True
+            self.stuck_count = 0  # Reset the stuck count
+            self.exceptions_raised = 0  # Reset the exceptions_raised count
+            return True  # The phase was stuck
+        return False  # The phase was not stuck
+
+    def check(self, max_stuck_count: int = 3) -> bool:
+        """Check the ILM phase transition
+
         Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
         phase change completion.  It will return ``True`` if the expected phase and the
         actually collected phase match. If phase is ``new``, it will return ``True`` if
@@ -128,28 +240,22 @@ class IlmPhase(IndexLifecycle):
         We cannot not be responsible for retrying with a changed name as it's not in
         our scope as a "waiter"
 
-        :getter: Returns if the check was complete
-        :type: bool
+        :param int max_stuck_count: The maximum number of times the phase can be stuck
+            before returning raising an exception. Default is 3.
+        :type max_stuck_count: int
+        :returns: Returns if the check was complete
+        :rtype: bool
         """
         self.too_many_exceptions()
-        explain = DotMap(self.get_explain_data())
-        if not explain:
-            logger.warning('No ILM Explain data found.')
-            self.exceptions_raised += 1
+        if not self.has_explain():
             return False
-        logger.debug(f'ILM Explain data: {explain}')
-        if not explain.phase:
-            logger.warning('No ILM Phase found.')
-            self.exceptions_raised += 1
+        logger.info(f'Current ILM Phase: {self.explain.phase}')
+        logger.debug(f'Expecting ILM Phase: {self.phase}')
+        if self.phase_stuck(max_stuck_count):
+            # The phase was stuck, and we triggered an ILM advance
             return False
-        logger.info(f'ILM Phase {explain.phase} found.')
-        if self.phase == 'new':
-            logger.debug('Expecting ILM Phase new, or higher')
-            if self.phase_by_num(explain.phase) >= self.phase_by_num(self.phase):
-                return True
-        else:
-            logger.debug(f'Expecting ILM Phase {self.phase}')
-        return bool(explain.phase == self.phase)
+        logger.debug('ILM Phase not stuck.')
+        return self.reached_phase()
 
     def phase_by_num(self, phase: str) -> int:
         """Map a phase name to a phase number"""
@@ -225,17 +331,9 @@ class IlmStep(IndexLifecycle):
         :type: bool
         """
         self.too_many_exceptions()
-        explain = DotMap(action='no', step='no')  # Set defaults so the return works
-        try:
-            explain = DotMap(self.get_explain_data())
-        except NotFoundError as err:
-            if self.client.indices.exists(index=self.name):
-                msg = (
-                    f'NotFoundError encountered. However, index {self.name} has been '
-                    f'confirmed to exist, so we continue to retry...'
-                )
-                logger.debug(msg)
-            else:
-                self.exceptions_raised += 1
-                raise err
-        return bool(explain.action == 'complete' and explain.step == 'complete')
+        if not self.client.indices.exists(index=self.name):
+            self.exceptions_raised += 1
+            self.add_exception(IlmWaitError(f'Index {self.name} not found.'))
+            logger.debug(f'Index {self.name} not found.')
+            return False
+        return self.phase_complete
