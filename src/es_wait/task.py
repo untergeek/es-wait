@@ -1,10 +1,12 @@
 """Task Completion Waiter"""
 
+# pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
 import warnings
 from time import localtime, strftime
 from dotmap import DotMap  # type: ignore
+import tiered_debug as debug
 from elasticsearch8.exceptions import GeneralAvailabilityWarning
 from ._base import Waiter
 from .defaults import TASK
@@ -19,7 +21,6 @@ logger = logging.getLogger(__name__)
 class Task(Waiter):
     """Wait for a task to complete"""
 
-    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
@@ -32,6 +33,7 @@ class Task(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
+        debug.lv2('Initializing Task object...')
         #: The action to wait for
         self.action = action
         if action not in ['forcemerge', 'reindex', 'update_by_query']:
@@ -47,7 +49,8 @@ class Task(Waiter):
         self.task = None
         self.failure_count = 0
         self.waitstr = f'for the "{self.action}" task to complete'
-        logger.debug(f'Waiting {self.waitstr}...')
+        debug.lv1(f'Waiting {self.waitstr}...')
+        debug.lv3('Task object initialized')
 
     @property
     def task_complete(self) -> bool:
@@ -59,8 +62,9 @@ class Task(Waiter):
         return ``True``. If the task is not completed, it will log some information
         about the task and return ``False``
         """
+        debug.lv2('Starting method...')
         running_time = 0.000000001 * self.task.running_time_in_nanos  # type: ignore
-        logger.debug(f'Running time: {running_time} seconds')
+        debug.lv3(f'Running time: {running_time} seconds')
         if self.task_data.completed:  # type: ignore
             completion_time = running_time * 1000
             completion_time += self.task['start_time_in_millis']  # type: ignore
@@ -71,18 +75,20 @@ class Task(Waiter):
                 f'Task "{self.task.description}" with task_id '  # type: ignore
                 f'"{self.task_id}" completed at {time_string}'
             )
-            logger.debug(msg)
+            debug.lv3(msg)
             retval = True
         else:
             # Log the task status here.
             _ = self.task_data.toDict()  # type: ignore
-            logger.debug(f'Full Task Data: {prettystr(_)}')
+            debug.lv5(f'Full Task Data: {prettystr(_)}')
             msg = (
                 f'Task "{self.task.description}" with task_id '  # type: ignore
                 f'"{self.task_id}" has been running for {running_time} seconds'
             )
-            logger.debug(msg)
+            debug.lv3(msg)
             retval = False
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {retval}')
         return retval
 
     def check(self) -> bool:
@@ -99,6 +105,7 @@ class Task(Waiter):
         :getter: Returns if the check was complete
         :type: bool
         """
+        debug.lv2('Starting method...')
         # The properties for task_data
         # TASK_DATA
         # self.task_data.response = {}
@@ -116,7 +123,6 @@ class Task(Waiter):
             # from that release onward.
             warnings.filterwarnings("ignore", category=GeneralAvailabilityWarning)
             response = dict(self.client.tasks.get(task_id=self.task_id))
-        # pylint: disable=broad-except
         except Exception as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
@@ -136,6 +142,8 @@ class Task(Waiter):
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error in reindex_check: {prettystr(err)}')
             return False
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {self.task_complete}')
         return self.task_complete
 
     def reindex_check(self) -> None:
@@ -146,13 +154,13 @@ class Task(Waiter):
 
         Gets data from :py:attr:`task` and :py:attr:`task_data`.
         """
+        debug.lv2('Starting method...')
         if self.task.action == 'indices:data/write/reindex':  # type: ignore
-            # logger.debug("It's a REINDEX task")
-            # logger.debug(f'TASK_DATA: {prettystr(self.task_data.toDict())}')
-            # logger.debug(
-            #     f'TASK_DATA keys: '
-            #     f'{prettystr(list(self.task_data.toDict().keys()))}'
-            # )
+            debug.lv5("It's a REINDEX task")
+            debug.lv5(f'TASK_DATA: {prettystr(self.task_data.toDict())}')
+            debug.lv5(
+                f'TASK_DATA keys: ' f'{prettystr(list(self.task_data.toDict().keys()))}'
+            )
             if self.task_data.response.failures:  # type: ignore
                 if len(self.task_data.response.failures) > 0:  # type: ignore
                     _ = self.task_data.response.failures  # type: ignore
@@ -160,4 +168,7 @@ class Task(Waiter):
                         f'Failures found in the {self.action} response: '
                         f'{prettystr(_)}'
                     )
+                    logger.error(msg)
+                    debug.lv3('Exiting method, raising ValueError')
                     raise ValueError(msg)
+            debug.lv3('Exiting method')

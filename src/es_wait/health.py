@@ -1,9 +1,9 @@
 """Health Check Waiter"""
 
-# pylint: disable=R0913
-
+# pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
+import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
 from .defaults import HealthCheckDict, HealthTypes, HEALTH
@@ -63,6 +63,7 @@ class Health(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
+        debug.lv2('Initializing Health object...')
         #: The entity name
         self.check_type = check_type
         if self.check_type == 'cluster_routing' and indices is not None:
@@ -75,7 +76,8 @@ class Health(Waiter):
         )
         self.check_for = check_for or HEALTH['types'][check_type]
         self.waitstr = WAITSTR_MAP[check_type]
-        logger.debug(f'Waiting {self.waitstr}...')
+        debug.lv1(f'Waiting {self.waitstr}...')
+        debug.lv3('Health object initialized')
 
     @property
     def filter_path(self) -> str:
@@ -104,6 +106,7 @@ class Health(Waiter):
         :returns: True if the condition in 'check_for' is met, False otherwise.
         :rtype: bool
         """
+        debug.lv2('Starting method...')
         self.too_many_exceptions()
         target = self.indices if self.check_type != 'cluster_routing' else '*'
         if self.check_type == 'cluster_routing':
@@ -112,12 +115,17 @@ class Health(Waiter):
             response = self.client.cluster.health(
                 index=target, filter_path=self.filter_path
             )
+            debug.lv5(f'cluster.health response: {response}')
             result = healthchk_result(response, self.check_for)
             if result:
-                logger.debug(f'{self.check_type} health check passed.')
-            return result
+                retval = result
+            else:
+                retval = False
         except TransportError as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error checking health: {prettystr(err)}')
-            return False
+            retval = False
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {retval}')
+        return retval

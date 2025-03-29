@@ -1,9 +1,11 @@
 """Base Waiter Class"""
 
+# pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
 from time import sleep
 from datetime import datetime, timezone
+import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from .defaults import BASE
 from .exceptions import (
@@ -25,8 +27,10 @@ class TimeTracker:
     """Track time for the Waiter class"""
 
     def __init__(self, log_frequency: int = 5) -> None:
+        debug.lv2('Initializing TimeTracker object...')
         self.log_frequency = log_frequency
         self.start_time = self.now
+        debug.lv3('TimeTracker object initialized')
 
     @property
     def elapsed(self) -> float:
@@ -71,6 +75,7 @@ class Waiter:
             'max_exceptions', 10
         ),  # The maximum number of exceptions to allow
     ) -> None:
+        debug.lv2('Initializing Waiter object...')
         #: An :py:class:`Elasticsearch <elasticsearch.Elasticsearch>` client instance
         self.client = client
         #: The delay between checks for completion
@@ -86,6 +91,7 @@ class Waiter:
         self.waitstr = 'for Waiter class to initialize'
         #: Only changes to True in certain circumstances
         self.do_health_report = False
+        debug.lv3('Waiter object initialized')
 
     @property
     def exception_count_msg(self) -> str:
@@ -150,10 +156,12 @@ class Waiter:
         If the number of exceptions raised is greater than or equal to the maximum
         number of exceptions allowed, then a :py:exc:`ExceptionCount` will be raised.
         """
+        debug.lv2('Stating method...')
         if self.exceptions_raised >= self.max_exceptions:
             msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
             logger.error(msg)
             raise ExceptionCount(msg, self.exceptions_raised, tuple(self.exceptions))
+        debug.lv3('Exiting method')
 
     def wait(self, frequency: int = 5) -> None:
         """
@@ -177,10 +185,11 @@ class Waiter:
 
         :param frequency: The number of seconds between log reports on progress.
         """
+        debug.lv2('Starting method...')
         # Now with this mapped, we can perform the wait as indicated.
         tracker = TimeTracker(log_frequency=frequency)
         success = False
-        logger.debug(f'Only logging every {frequency} seconds')
+        debug.lv2(f'Only logging every {frequency} seconds')
         while True:
             try:
                 response = self.check()
@@ -198,9 +207,9 @@ class Waiter:
                 raise EsWaitFatal(msg, tracker.elapsed, tuple(self.exceptions)) from err
             # Successfully completed task.
             if response:
-                logger.debug(f'The wait {self.waitstr} is over.')
+                debug.lv2(f'The wait {self.waitstr} is over.')
                 total = f'{tracker.elapsed:.2f}'
-                logger.debug(f'Elapsed time: {total} seconds')
+                debug.lv3(f'Elapsed time: {total} seconds')
                 success = True
                 break
             # Not success, and reached timeout (if defined)
@@ -218,7 +227,7 @@ class Waiter:
                     f'total seconds have elapsed. Pausing {self.pause} seconds '
                     f'between checks.'
                 )
-                logger.debug(msg)
+                debug.lv2(msg)
             sleep(self.pause)
 
         if not success:
@@ -235,3 +244,4 @@ class Waiter:
                     fail = f'Health report failed: {exc}'
                     logger.error(fail)
             raise timeout
+        debug.lv3('Exiting method')

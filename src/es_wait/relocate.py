@@ -1,7 +1,9 @@
 """Index Relocation Waiter"""
 
+# pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
+import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
 from .defaults import RELOCATE
@@ -15,7 +17,6 @@ logger = logging.getLogger(__name__)
 class Relocate(Waiter):
     """Wait for an index to relocate"""
 
-    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
@@ -50,11 +51,13 @@ class Relocate(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
+        debug.lv2('Initializing Relocate object...')
         #: The index name
         self.name = name
         self._ensure_not_none('name')
         self.waitstr = f'for index "{self.name}" to finish relocating'
-        logger.debug(f'Waiting {self.waitstr}...')
+        debug.lv1(f'Waiting {self.waitstr}...')
+        debug.lv3('Relocate object initialized')
 
     @property
     def finished_state(self) -> bool:
@@ -69,19 +72,27 @@ class Relocate(Waiter):
         :getter: Returns whether the shards are all ``STARTED``
         :type: bool
         """
+        debug.lv2('Starting method...')
         _ = self.routing_table()
         if not _:
             logger.warning(f'No routing table data for index "{self.name}"')
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = False')
             return False
         try:
-            return all(
+            retval = all(
                 all(shard['state'] == "STARTED" for shard in shards)
                 for shards in _.values()
             )
+            debug.lv3('Exiting method, returning value')
+            debug.lv5(f'Value = {retval}')
+            return retval
         except KeyError as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'KeyError in finished_state for index "{self.name}"')
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = False')
             return False
 
     def routing_table(self) -> t.Dict[str, t.List[t.Dict[str, str]]]:
@@ -106,6 +117,7 @@ class Relocate(Waiter):
         :getter: Returns the shard routing table
         :type: t.Dict[str, t.List[t.Dict[str, str]]]
         """
+        debug.lv2('Starting method...')
         msg = f'Unable to get routing table data from cluster state for {self.name}'
         fpath = f'routing_table.indices.{self.name}'
         try:
@@ -118,19 +130,27 @@ class Relocate(Waiter):
             #             "0": [
             #                   {
             #                    "state": "SHARD_STATE",
+            debug.lv5(f'cluster.state response: {result}')
         except TransportError as exc:
             self.exceptions_raised += 1
             self.add_exception(exc)  # Append the error to self._exceptions
             logger.critical(f'{msg} because of {exc}')
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = {}')
             return {}
 
         # Actually return the result
         try:
-            return result['routing_table']['indices'][self.name]['shards']
+            retval = result['routing_table']['indices'][self.name]['shards']
+            debug.lv3('Exiting method, returning value')
+            debug.lv5(f'Value = {retval}')
+            return retval
         except KeyError as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'{msg} because of {err}')
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = {}')
             return {}
 
     def check(self) -> bool:
@@ -141,6 +161,7 @@ class Relocate(Waiter):
         :returns: Returns if the check was complete
         :rtype: bool
         """
+        debug.lv2('Starting method...')
         self.too_many_exceptions()
         try:
             finished = self.finished_state
@@ -150,5 +171,7 @@ class Relocate(Waiter):
             logger.error(f'Error checking for index "{self.name}": {err}')
             finished = False
         if finished:
-            logger.debug(f'Relocate Check for index: "{self.name}" has passed.')
+            debug.lv1(f'Relocate Check for index: "{self.name}" has passed.')
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {finished}')
         return finished

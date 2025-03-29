@@ -1,7 +1,9 @@
 """Snapshot Restore Waiter"""
 
+# pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
+import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
 from .defaults import RESTORE
@@ -27,11 +29,13 @@ class Restore(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
+        debug.lv2('Initializing Restore object...')
         #: The list of indices being restored
         self.index_list = index_list
         self._ensure_not_none('index_list')
         self.waitstr = 'for indices in index_list to be restored from snapshot'
-        logger.debug(f'Waiting {self.waitstr}...')
+        debug.lv1(f'Waiting {self.waitstr}...')
+        debug.lv3('Restore object initialized')
 
     @property
     def index_list_chunks(self) -> t.Sequence[t.Sequence[str]]:
@@ -45,6 +49,7 @@ class Restore(Waiter):
         :getter: Returns a list of smaller chunks of :py:attr:`index_list` in lists
         :type: bool
         """
+        debug.lv2('Starting method...')
         chunks = []
         chunk = ""
         for index in self.index_list:
@@ -57,6 +62,8 @@ class Restore(Waiter):
                 chunks.append(chunk.split(','))
                 chunk = index
         chunks.append(chunk.split(','))
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {chunks}')
         return chunks
 
     def check(self) -> bool:
@@ -78,6 +85,7 @@ class Restore(Waiter):
         :getter: Returns if the check was complete
         :type: bool
         """
+        debug.lv2('Starting method...')
         response = {}
         for chunk in self.index_list_chunks:
             try:
@@ -88,20 +96,24 @@ class Restore(Waiter):
                 logger.error(err)
                 return False
             if not chunk_response:
-                logger.debug('_recovery API returned an empty response. Trying again.')
+                debug.lv1('_recovery API returned an empty response. Trying again.')
                 self.exceptions_raised += 1  # Repeated empties as exceptions
+                debug.lv3('Exiting method, returning value')
+                debug.lv5('Value = False')
                 return False
             response.update(chunk_response)
-        logger.debug(f'Provided indices: {prettystr(self.index_list)}')
-        logger.debug(f'Found indices: {prettystr(list(response.keys()))}')
+        debug.lv3(f'Provided indices: {prettystr(self.index_list)}')
+        debug.lv3(f'Found indices: {prettystr(list(response.keys()))}')
         for index, data in response.items():
             for shard in data['shards']:
                 stage = shard['stage']
                 if stage != 'DONE':
-                    logger.debug(f'Index {index} is still in stage {stage}')
+                    debug.lv1(f'Index {index} is still in stage {stage}')
                     return False
 
         # If we've gotten here, all of the indices have recovered
+        debug.lv3('Exiting method, returning value')
+        debug.lv5('Value = True')
         return True
 
     def get_recovery(self, chunk: t.Sequence[str]) -> t.Dict:
@@ -121,6 +133,7 @@ class Restore(Waiter):
         :returns: The response from the recovery API for the provided chunk
         :rtype: dict
         """
+        debug.lv2('Starting method...')
         chunk_response = {}
         try:
             chunk_response = dict(self.client.indices.recovery(index=chunk, human=True))
@@ -132,7 +145,6 @@ class Restore(Waiter):
             )
             logger.warning(msg)
             self.add_exception(err)  # Append the error to self._exceptions
-        # pylint: disable=broad-except
         except Exception as err:
             msg = (
                 f'Restore.get_recovery: Unable to obtain recovery information for '
@@ -140,4 +152,6 @@ class Restore(Waiter):
             )
             logger.warning(msg)
             self.add_exception(err)  # Append the error to self._exceptions
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {chunk_response}')
         return chunk_response

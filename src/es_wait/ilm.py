@@ -1,8 +1,10 @@
 """ILM Phase and Step Check Waiters"""
 
+# pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
 from dotmap import DotMap  # type: ignore
+import tiered_debug as debug
 from elasticsearch8.exceptions import NotFoundError
 from ._base import Waiter
 from .defaults import ILM
@@ -18,7 +20,6 @@ logger = logging.getLogger(__name__)
 class IndexLifecycle(Waiter):
     """ILM Step and Phase Parent Class"""
 
-    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
@@ -67,7 +68,7 @@ class IndexLifecycle(Waiter):
         """
         try:
             resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
-            logger.debug(f'ILM Explain response: {prettystr(resp)}')
+            debug.lv5(f'ILM Explain response: {prettystr(resp)}')
         except NotFoundError as exc:
             msg = (
                 f'Datastream/Index Name changed. {self.name} was not found. '
@@ -95,6 +96,8 @@ class IndexLifecycle(Waiter):
             logger.critical(msg)
             raise IlmWaitError(f'{msg}. Exception: {prettystr(err)}') from err
         retval = resp['indices'][self.name]
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {prettystr(retval)}')
         return retval
 
 
@@ -123,15 +126,17 @@ class IlmPhase(IndexLifecycle):
             max_exceptions=max_exceptions,
             name=name,
         )
+        debug.lv2('Initializing IlmPhase object...')
         #: The target ILM phase
         self.phase = phase
         self._ensure_not_none('phase')
         self.waitstr = (
             f'for "{self.name}" to complete ILM transition to phase "{self.phase}"'
         )
-        logger.debug(f'Waiting {self.waitstr}...')
+        debug.lv1(f'Waiting {self.waitstr}...')
         self.stuck_count = 0
         self.advanced = False
+        debug.lv3('IlmPhase object initialized')
 
     @property
     def phase_gte(self) -> bool:
@@ -160,20 +165,29 @@ class IlmPhase(IndexLifecycle):
         if not self.explain:
             logger.warning('No ILM Explain data found.')
             self.exceptions_raised += 1
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = False')
             return False
-        logger.debug(f'ILM Explain data: {self.explain.toDict()}')
+        debug.lv5(f'ILM Explain data: {self.explain.toDict()}')
         if not self.explain.phase:
             logger.warning('No ILM Phase found.')
             self.exceptions_raised += 1
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = False')
             return False
+        debug.lv3('Exiting method, returning value')
+        debug.lv5('Value = True')
         return True
 
     def reached_phase(self) -> bool:
         """Check if the phase is what we expect
         :returns: boolean of "The phase reached its target"
         """
+        debug.lv2('Starting method...')
         if self.phase_gte and self.phase == 'new':
-            logger.debug('ILM Phase: new is complete')
+            debug.lv2('ILM Phase: new is complete')
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = True')
             return True
         if self.phase_lt and self.phase_complete:
             self.stuck_count += 1
@@ -181,10 +195,16 @@ class IlmPhase(IndexLifecycle):
                 f'ILM Phase: {self.explain.phase} is complete, '
                 f'but expecting {self.phase}. Seen {self.stuck_count} times'
             )
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = False')
             return False
         if self.phase_lt:
-            logger.debug(f'ILM has not yet reached phase {self.phase}')
+            debug.lv2(f'ILM has not yet reached phase {self.phase}')
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = False')
             return False
+        debug.lv3('Exiting method, returning value')
+        debug.lv5('Value = True')
         return True  # The phase is now gte to the target phase
 
     def phase_stuck(self, max_stuck_count: int = 3) -> bool:
@@ -194,6 +214,7 @@ class IlmPhase(IndexLifecycle):
         :type max_stuck_count: int
         :returns: boolean of "The phase is stuck"
         """
+        debug.lv2('Starting method...')
         if self.stuck_count >= max_stuck_count:
             if self.advanced:
                 msg = (
@@ -221,7 +242,11 @@ class IlmPhase(IndexLifecycle):
             self.advanced = True
             self.stuck_count = 0  # Reset the stuck count
             self.exceptions_raised = 0  # Reset the exceptions_raised count
+            debug.lv3('Exiting method, returning value')
+            debug.lv5('Value = True')
             return True  # The phase was stuck
+        debug.lv3('Exiting method, returning value')
+        debug.lv5('Value = False')
         return False  # The phase was not stuck
 
     def check(self, max_stuck_count: int = 3) -> bool:
@@ -246,19 +271,24 @@ class IlmPhase(IndexLifecycle):
         :returns: Returns if the check was complete
         :rtype: bool
         """
+        debug.lv2('Starting method...')
         self.too_many_exceptions()
         if not self.has_explain():
             return False
         logger.info(f'Current ILM Phase: {self.explain.phase}')
-        logger.debug(f'Expecting ILM Phase: {self.phase}')
+        debug.lv2(f'Expecting ILM Phase: {self.phase}')
         if self.phase_stuck(max_stuck_count):
             # The phase was stuck, and we triggered an ILM advance
             return False
-        logger.debug('ILM Phase not stuck.')
-        return self.reached_phase()
+        debug.lv2('ILM Phase not stuck.')
+        retval = self.reached_phase()
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {retval}')
+        return retval
 
     def phase_by_num(self, phase: str) -> int:
         """Map a phase name to a phase number"""
+        debug.lv2('Starting method...')
         _ = {
             'undef': 0,
             'new': 1,
@@ -268,12 +298,14 @@ class IlmPhase(IndexLifecycle):
             'frozen': 5,
             'delete': 6,
         }
-        if phase in _:
-            return _[phase]
-        return 0  # Default to 0/undef if not found
+        retval = _.get(phase, 0)  # Default to 0/undef if not found
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {retval}')
+        return retval
 
     def phase_by_name(self, num: int) -> str:
         """Map a phase number to a phase name"""
+        debug.lv2('Starting method...')
         _ = {
             # 0: 'undef',
             1: 'new',
@@ -283,9 +315,10 @@ class IlmPhase(IndexLifecycle):
             5: 'frozen',
             6: 'delete',
         }
-        if num in _:
-            return _[num]
-        return 'undef'  # Default to 'undef' if not found
+        retval = _.get(num, 'undef')  # Default to undef if not found
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {retval}')
+        return retval
 
 
 class IlmStep(IndexLifecycle):
@@ -296,7 +329,6 @@ class IlmStep(IndexLifecycle):
     minutes. Setting pause and timeout accordingly is a good idea.
     """
 
-    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
@@ -312,7 +344,9 @@ class IlmStep(IndexLifecycle):
             max_exceptions=max_exceptions,
             name=name,
         )
+        debug.lv2('Initializing IlmStep object...')
         self.waitstr = f'for "{self.name}" to complete the current ILM step'
+        debug.lv1(f'Waiting {self.waitstr}...')
 
     def check(self) -> bool:
         """
@@ -334,6 +368,10 @@ class IlmStep(IndexLifecycle):
         if not self.client.indices.exists(index=self.name):
             self.exceptions_raised += 1
             self.add_exception(IlmWaitError(f'Index {self.name} not found.'))
-            logger.debug(f'Index {self.name} not found.')
-            return False
-        return self.phase_complete
+            debug.lv1(f'Index {self.name} not found.')
+            retval = False
+        else:
+            retval = self.phase_complete
+        debug.lv3('Exiting method, returning value')
+        debug.lv5(f'Value = {retval}')
+        return retval
