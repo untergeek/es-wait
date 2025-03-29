@@ -60,31 +60,6 @@ class TestRestore(unittest.TestCase):
             self.assertFalse(self.restore.check())
             self.assertIn('ERROR:es_wait.restore:Test error', log.output)
 
-    def test_check_empty_response(self):
-        """Test that check returns False when get_recovery returns an empty response"""
-        self.restore.get_recovery = MagicMock(return_value={})
-        with self.assertLogs('es_wait.restore', level='DEBUG') as log:
-            self.assertFalse(self.restore.check())
-            self.assertIn(
-                'DEBUG:es_wait.restore:_recovery API returned '
-                'an empty response. Trying again.',
-                log.output,
-            )
-
-    def test_check_partial_recovery(self):
-        """Test that check returns False when not all indices are recovered"""
-        self.restore.get_recovery = MagicMock(
-            return_value={
-                'index1': {'shards': [{'stage': 'DONE'}]},
-                'index2': {'shards': [{'stage': 'INIT'}]},
-            }
-        )
-        with self.assertLogs('es_wait.restore', level='DEBUG') as log:
-            self.assertFalse(self.restore.check())
-            self.assertIn(
-                'DEBUG:es_wait.restore:Index index2 is still in stage INIT', log.output
-            )
-
     def test_check_complete_recovery(self):
         """Test that check returns True when all indices are recovered"""
         self.restore.get_recovery = MagicMock(
@@ -150,3 +125,26 @@ class TestRestoreMore:
         assert 'index1' in caplog.text
         assert "Exception('Test Exception')" in caplog.text
         assert rc.exceptions_raised == 1
+
+
+def test_check_empty_response(caplog):
+    """Test that check returns False when get_recovery returns an empty response"""
+    client = MagicMock()
+    restore = Restore(client=client, index_list=['index1', 'index2'])
+    restore.get_recovery = MagicMock(return_value={})
+    assert not restore.check()
+    assert '_recovery API returned an empty response. Trying again.' in caplog.text
+
+
+def test_check_partial_recovery(caplog):
+    """Test that check returns False when not all indices are recovered"""
+    client = MagicMock()
+    restore = Restore(client=client, index_list=['index1', 'index2'])
+    restore.get_recovery = MagicMock(
+        return_value={
+            'index1': {'shards': [{'stage': 'DONE'}]},
+            'index2': {'shards': [{'stage': 'INIT'}]},
+        }
+    )
+    assert not restore.check()
+    assert 'Index index2 is still in stage INIT' in caplog.text
