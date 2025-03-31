@@ -126,6 +126,15 @@ class Waiter:
         """
         self._exceptions.append(value)
 
+    def announce(self) -> None:
+        """
+        This method is called when the Waiter class is initialized. It logs a
+        level 1 debug message using :py:attr:`waitstr`.
+        """
+        debug.lv2('Starting method...')
+        debug.lv1(f'The wait {self.waitstr} is starting...')
+        debug.lv3('Exiting method')
+
     def check(self) -> bool:
         """
         This will be redefined by each child class
@@ -159,7 +168,9 @@ class Waiter:
         debug.lv2('Stating method...')
         if self.exceptions_raised >= self.max_exceptions:
             msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
+            debug.lv3('Exiting method, raising exception')
             logger.error(msg)
+            debug.lv5('Exception = ExceptionCount')
             raise ExceptionCount(msg, self.exceptions_raised, tuple(self.exceptions))
         debug.lv3('Exiting method')
 
@@ -192,9 +203,12 @@ class Waiter:
         debug.lv2(f'Only logging every {frequency} seconds')
         while True:
             try:
+                debug.lv4('TRY: Checking for completion')
                 response = self.check()
+                debug.lv5(f'check() response: {response}')
             except ExceptionCount as err:
-                logger.critical(f'{self.exception_count_msg} from {err}')
+                debug.lv3('Exiting method, raising exception')
+                logger.critical(f'{self.exception_count_msg} from {prettystr(err)}')
                 raise EsWaitFatal(
                     self.exception_count_msg, tracker.elapsed, tuple(self.exceptions)
                 ) from err
@@ -203,6 +217,7 @@ class Waiter:
                 IlmWaitError,
             ) as err:  # Catch any other local Exceptions
                 msg = f'An error occurred: {prettystr(err)}'
+                debug.lv3('Exiting method, raising exception')
                 logger.critical(msg)
                 raise EsWaitFatal(msg, tracker.elapsed, tuple(self.exceptions)) from err
             # Successfully completed task.
@@ -239,9 +254,12 @@ class Waiter:
             timeout = EsWaitTimeout(msg, tracker.elapsed, self.timeout)
             if self.do_health_report:
                 try:
+                    debug.lv4('TRY: Getting health report')
                     health_report(self.client.health_report())
                 except TransportError as exc:
                     fail = f'Health report failed: {exc}'
                     logger.error(fail)
+            debug.lv3('Exiting method, raising exception')
+            debug.lv5(f'Exception = "{prettystr(timeout)}"')
             raise timeout
         debug.lv3('Exiting method')

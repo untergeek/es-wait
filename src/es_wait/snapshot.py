@@ -37,7 +37,7 @@ class Snapshot(Waiter):
         self._ensure_not_none('snapshot')
         self._ensure_not_none('repository')
         self.waitstr = f'for snapshot "{self.snapshot}" to complete'
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         debug.lv3('Snapshot object initialized')
 
     @property
@@ -52,11 +52,13 @@ class Snapshot(Waiter):
         """
         result = {}
         try:
+            debug.lv4('TRY: snapshot.get()')
             result = dict(
                 self.client.snapshot.get(
                     repository=self.repository, snapshot=self.snapshot
                 )
             )
+            debug.lv5(f'snapshot.get result: {result}')
         except Exception as err:
             raise ValueError(
                 f'Unable to obtain information for snapshot "{self.snapshot}" in '
@@ -80,7 +82,9 @@ class Snapshot(Waiter):
         debug.lv2('Starting method...')
         self.too_many_exceptions()
         try:
+            debug.lv4('TRY: Getting snapshot state')
             state = self.snapstate['snapshots'][0]['state']
+            debug.lv5(f'snapshot state: {state}')
             retval = True
         except ValueError as err:
             self.exceptions_raised += 1

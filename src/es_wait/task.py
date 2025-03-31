@@ -49,7 +49,7 @@ class Task(Waiter):
         self.task = None
         self.failure_count = 0
         self.waitstr = f'for the "{self.action}" task to complete'
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         debug.lv3('Task object initialized')
 
     @property
@@ -121,8 +121,10 @@ class Task(Waiter):
             # The Tasks API is not yet GA. We need to suppress the warning for now.
             # This is required after elasticsearch8>=8.16.0 as the warning is raised
             # from that release onward.
+            debug.lv4('TRY: Getting task information')
             warnings.filterwarnings("ignore", category=GeneralAvailabilityWarning)
             response = dict(self.client.tasks.get(task_id=self.task_id))
+            debug.lv5(f'tasks.get response: {response}')
         except Exception as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
@@ -136,6 +138,7 @@ class Task(Waiter):
         self.task_data = DotMap(response)
         self.task = self.task_data.task  # type: ignore
         try:
+            debug.lv4('TRY: Checking for reindex task')
             self.reindex_check()
         except ValueError as err:
             self.exceptions_raised += 1

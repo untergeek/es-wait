@@ -56,7 +56,7 @@ class Relocate(Waiter):
         self.name = name
         self._ensure_not_none('name')
         self.waitstr = f'for index "{self.name}" to finish relocating'
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         debug.lv3('Relocate object initialized')
 
     @property
@@ -80,6 +80,7 @@ class Relocate(Waiter):
             debug.lv5('Value = False')
             return False
         try:
+            debug.lv4('TRY: Getting shard state data')
             retval = all(
                 all(shard['state'] == "STARTED" for shard in shards)
                 for shards in _.values()
@@ -121,6 +122,7 @@ class Relocate(Waiter):
         msg = f'Unable to get routing table data from cluster state for {self.name}'
         fpath = f'routing_table.indices.{self.name}'
         try:
+            debug.lv4('TRY: Getting cluster state response')
             result = self.client.cluster.state(index=self.name, filter_path=fpath)
             # {
             #     "routing_table": {
@@ -141,6 +143,7 @@ class Relocate(Waiter):
 
         # Actually return the result
         try:
+            debug.lv4('TRY: Getting shard routing table data')
             retval = result['routing_table']['indices'][self.name]['shards']
             debug.lv3('Exiting method, returning value')
             debug.lv5(f'Value = {retval}')
@@ -164,6 +167,7 @@ class Relocate(Waiter):
         debug.lv2('Starting method...')
         self.too_many_exceptions()
         try:
+            debug.lv4('TRY: Getting finished_state value')
             finished = self.finished_state
         except (TransportError, KeyError) as err:
             self.exceptions_raised += 1

@@ -34,7 +34,7 @@ class Restore(Waiter):
         self.index_list = index_list
         self._ensure_not_none('index_list')
         self.waitstr = 'for indices in index_list to be restored from snapshot'
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         debug.lv3('Restore object initialized')
 
     @property
@@ -89,7 +89,9 @@ class Restore(Waiter):
         response = {}
         for chunk in self.index_list_chunks:
             try:
+                debug.lv4('Calling get_recovery')
                 chunk_response = self.get_recovery(chunk)
+                debug.lv5(f'get_recovery response: {chunk_response}')
             except ValueError as err:
                 self.exceptions_raised += 1
                 self.add_exception(err)  # Append the error to self._exceptions
@@ -136,7 +138,9 @@ class Restore(Waiter):
         debug.lv2('Starting method...')
         chunk_response = {}
         try:
+            debug.lv4('TRY: Getting index recovery information')
             chunk_response = dict(self.client.indices.recovery(index=chunk, human=True))
+            debug.lv5(f'indices.recovery response: {chunk_response}')
         except TransportError as err:
             msg = (
                 f'Restore.get_recovery: Unable to obtain recovery information for '

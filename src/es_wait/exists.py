@@ -57,7 +57,7 @@ class Exists(Waiter):
         self.kind = kind
         self._ensure_not_none('name')
         self.waitstr = f'for {kind} "{name}" to exist'
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         debug.lv3('Exists object initialized')
 
     def check(self) -> bool:
@@ -85,6 +85,7 @@ class Exists(Waiter):
         func, kwargs = self.func_map()
         self.too_many_exceptions()
         try:
+            debug.lv4('TRY: Getting boolean value from function call')
             retval = bool(func(**kwargs))
         except TransportError as err:
             self.exceptions_raised += 1

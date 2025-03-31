@@ -66,7 +66,9 @@ class IndexLifecycle(Waiter):
         <elasticsearch.client.IlmClient.explain_lifecycle>` with :py:attr:`name` and
         returns the resulting response.
         """
+        debug.lv2('Starting method...')
         try:
+            debug.lv4('TRY: Getting ILM explain data...')
             resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
             debug.lv5(f'ILM Explain response: {prettystr(resp)}')
         except NotFoundError as exc:
@@ -75,6 +77,8 @@ class IndexLifecycle(Waiter):
                 f'This is likely due to the index name suddenly changing, as with '
                 f'searchable snapshot mounts.'
             )
+            debug.lv3('Exiting method, raising exception')
+            debug.lv5(f'Exception = {prettystr(exc)}')
             logger.error(msg)
             raise exc  # re-raise the original. Just wanted to log here.
         # Proposed possible retry solution to name changes
@@ -133,7 +137,7 @@ class IlmPhase(IndexLifecycle):
         self.waitstr = (
             f'for "{self.name}" to complete ILM transition to phase "{self.phase}"'
         )
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         self.stuck_count = 0
         self.advanced = False
         debug.lv3('IlmPhase object initialized')
@@ -346,7 +350,7 @@ class IlmStep(IndexLifecycle):
         )
         debug.lv2('Initializing IlmStep object...')
         self.waitstr = f'for "{self.name}" to complete the current ILM step'
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
 
     def check(self) -> bool:
         """

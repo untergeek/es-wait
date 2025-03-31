@@ -116,6 +116,7 @@ def health_report(data: "ObjectApiResponse") -> None:
     rpt = dict(data)
 
     try:
+        debug.lv4('TRY: Looping over health report data')
         if rpt['status'] != 'green':
             logger.info(f"HEALTH REPORT: STATUS: {rpt['status'].upper()}")
             loop_health_indicators(rpt['indicators'])

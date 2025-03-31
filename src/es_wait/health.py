@@ -76,7 +76,7 @@ class Health(Waiter):
         )
         self.check_for = check_for or HEALTH['types'][check_type]
         self.waitstr = WAITSTR_MAP[check_type]
-        debug.lv1(f'Waiting {self.waitstr}...')
+        self.announce()
         debug.lv3('Health object initialized')
 
     @property
@@ -112,6 +112,7 @@ class Health(Waiter):
         if self.check_type == 'cluster_routing':
             logger.info('Doing cluster_routing health check. Checking all indices.')
         try:
+            debug.lv4('TRY: Getting health check response')
             response = self.client.cluster.health(
                 index=target, filter_path=self.filter_path
             )
