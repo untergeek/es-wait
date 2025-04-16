@@ -4,7 +4,7 @@ import typing as t
 import logging
 from sys import version_info
 from pprint import pformat
-import tiered_debug as debug
+from .debug import debug, begin_end
 from .defaults import HealthCheckDict
 
 if t.TYPE_CHECKING:
@@ -13,41 +13,39 @@ if t.TYPE_CHECKING:
 logger = logging.getLogger('es_wait.utils')
 
 
+@begin_end()
 def diagnosis_generator(ind: str, data: t.Sequence) -> t.Generator:
     """
     Yield diagnosis strings from the provided data
     :param data: The list from health_report['indicators'][ind]['diagnosis']
     :type data: list
     """
-    debug.lv2('Starting function...')
     diag_keys = ['cause', 'action', 'affected_resources']
     for idx, diag in enumerate(data):
         for key in diag_keys:
             yield f'INDICATOR: {ind}: DIAGNOSIS #{idx}: {key.upper()}: {diag[key]}'
-    debug.lv3('Exiting function')
 
 
+@begin_end()
 def impact_generator(ind: str, data: t.Sequence) -> t.Generator:
     """
     Yield impact strings from the provided data
     :param data: The list from health_report['indicators'][ind]['impact']
     :type data: list
     """
-    debug.lv2('Starting function...')
     impact_keys = ['severity', 'description', 'impact_areas']
     for idx, impact in enumerate(data):
         for key in impact_keys:
             yield f'INDICATOR: {ind}: IMPACT AREA #{idx}: {key.upper()}: {impact[key]}'
-    debug.lv3('Exiting function')
 
 
+@begin_end()
 def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
     """
     Yield symptom, details, and impacts and diagnosis strings for any indicators
     :param data: Data from health_report['indicators'][ind]
     :type data: dict
     """
-    debug.lv2('Starting function...')
     ind_keys = ['symptom', 'details', 'impacts', 'diagnosis']
     gen_map = {'diagnosis': diagnosis_generator, 'impacts': impact_generator}
     for key in ind_keys:
@@ -56,9 +54,9 @@ def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
             yield from func(ind, data[key])
         else:
             yield f'INDICATOR: {ind}: {key.upper()}: {data[key]}'
-    debug.lv3('Exiting function')
 
 
+@begin_end()
 def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> bool:
     """
     Check the health check data from
@@ -79,7 +77,6 @@ def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> b
     :returns: True if the expected response is in the data, otherwise False
     :rtype: bool
     """
-    debug.lv2('Starting function...')
     output = dict(data)
     check = True
     for key, value in check_for.items():
@@ -99,11 +96,11 @@ def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> b
                 f'{output[key]}'
             )
         debug.lv3(msg)
-    debug.lv3('Exiting function, returning value')
-    debug.lv5(f'Value = {check}')
+    debug.lv5(f'Return value = {check}')
     return check
 
 
+@begin_end()
 def health_report(data: "ObjectApiResponse") -> None:
     """
     Log the health report data from
@@ -112,9 +109,7 @@ def health_report(data: "ObjectApiResponse") -> None:
     :param data: The health report data
     :type data: :py:obj:`ObjectApiResponse <elastic_transport.ObjectApiResponse>`
     """
-    debug.lv2('Starting function...')
     rpt = dict(data)
-
     try:
         debug.lv4('TRY: Looping over health report data')
         if rpt['status'] != 'green':
@@ -122,24 +117,23 @@ def health_report(data: "ObjectApiResponse") -> None:
             loop_health_indicators(rpt['indicators'])
     except KeyError as err:
         logger.error(f'Health report data: {rpt}, error: {prettystr(err)}')
-    debug.lv3('Exiting function')
 
 
+@begin_end()
 def loop_health_indicators(inds: t.Dict) -> None:
     """
     Loop through the indicators and log the data
     :param inds: The health report indicators
     :type inds: dict
     """
-    debug.lv2('Starting function...')
     for ind in inds:
         if isinstance(ind, str):
             if inds[ind]['status'] != 'green':
                 for line in indicator_generator(ind, inds[ind]):
                     logger.info(f'HEALTH REPORT: {line}')
-    debug.lv3('Exiting function')
 
 
+@begin_end(begin=5, end=5)
 def prettystr(*args, **kwargs) -> str:
     """
     A (nearly) straight up wrapper for :py:meth:`pprint.pformat()
@@ -152,7 +146,6 @@ def prettystr(*args, **kwargs) -> str:
     PrettyPrinter constructor as formatting parameters' (from pprint
     documentation).
     """
-    debug.lv5('Starting function...')
     defaults = [
         ('indent', 2),
         ('width', 80),
@@ -169,6 +162,5 @@ def prettystr(*args, **kwargs) -> str:
         kw[key] = kwargs[key] if key in kwargs else default
     # newline in front so it's always clean
     retval = f"\n{pformat(*args, **kw)}"  # type: ignore
-    debug.lv5('Exiting function, returning value')
-    debug.lv5(f'Value = {retval}')
+    debug.lv5(f'Return value = {retval}')
     return retval

@@ -3,9 +3,9 @@
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
-import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
+from .debug import debug, begin_end
 from .defaults import EXISTS, ExistsTypes
 
 if t.TYPE_CHECKING:
@@ -60,6 +60,7 @@ class Exists(Waiter):
         self.announce()
         debug.lv3('Exists object initialized')
 
+    @begin_end()
     def check(self) -> bool:
         """
         Check if the named entity exists in Elasticsearch. The proper function
@@ -81,7 +82,6 @@ class Exists(Waiter):
         Returns:
             bool: True if the entity exists, False otherwise or if an error occurs.
         """
-        debug.lv2('Starting method...')
         func, kwargs = self.func_map()
         self.too_many_exceptions()
         try:
@@ -93,10 +93,10 @@ class Exists(Waiter):
             msg = f'Error checking for {self.kind} "{self.name}": {err}'
             logger.error(msg)
             retval = False
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval
 
+    @begin_end()
     def func_map(self) -> t.Tuple[t.Callable, t.Dict]:
         """
         This method maps :py:attr:`kind` to the proper function to call based
@@ -118,7 +118,6 @@ class Exists(Waiter):
         :returns: Tuple of the function to call and the keyword arguments
         :rtype: tuple
         """
-        debug.lv2('Starting method...')
         _ = {
             'index': (self.client.indices.exists, {'index': self.name}),
             'data_stream': (self.client.indices.exists, {'index': self.name}),
@@ -132,6 +131,5 @@ class Exists(Waiter):
             ),
         }
         retval = _[self.kind]  # __init__ ensures self.kind is valid
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval

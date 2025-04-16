@@ -5,8 +5,8 @@ import typing as t
 import logging
 from time import sleep
 from datetime import datetime, timezone
-import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
+from .debug import debug, begin_end
 from .defaults import BASE
 from .exceptions import (
     EsWaitException,
@@ -126,14 +126,13 @@ class Waiter:
         """
         self._exceptions.append(value)
 
+    @begin_end()
     def announce(self) -> None:
         """
         This method is called when the Waiter class is initialized. It logs a
         level 1 debug message using :py:attr:`waitstr`.
         """
-        debug.lv2('Starting method...')
         debug.lv1(f'The wait {self.waitstr} is starting...')
-        debug.lv3('Exiting method')
 
     def check(self) -> bool:
         """
@@ -160,20 +159,20 @@ class Waiter:
             logger.critical(msg)
             raise ValueError(msg)
 
+    @begin_end()
     def too_many_exceptions(self) -> None:
         """
         If the number of exceptions raised is greater than or equal to the maximum
         number of exceptions allowed, then a :py:exc:`ExceptionCount` will be raised.
         """
-        debug.lv2('Stating method...')
         if self.exceptions_raised >= self.max_exceptions:
             msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
             debug.lv3('Exiting method, raising exception')
             logger.error(msg)
             debug.lv5('Exception = ExceptionCount')
             raise ExceptionCount(msg, self.exceptions_raised, tuple(self.exceptions))
-        debug.lv3('Exiting method')
 
+    @begin_end()
     def wait(self, frequency: int = 5) -> None:
         """
         This method is where the actual waiting occurs. Depending on what `frequency`
@@ -196,7 +195,6 @@ class Waiter:
 
         :param frequency: The number of seconds between log reports on progress.
         """
-        debug.lv2('Starting method...')
         # Now with this mapped, we can perform the wait as indicated.
         tracker = TimeTracker(log_frequency=frequency)
         success = False
@@ -262,4 +260,3 @@ class Waiter:
             debug.lv3('Exiting method, raising exception')
             debug.lv5(f'Exception = "{prettystr(timeout)}"')
             raise timeout
-        debug.lv3('Exiting method')
