@@ -4,6 +4,7 @@
 import logging
 import pytest
 from elastic_transport import ObjectApiResponse, ApiResponseMeta
+from es_wait.debug import debug
 from es_wait.utils import (
     diagnosis_generator,
     impact_generator,
@@ -136,7 +137,9 @@ def test_health_report_green(caplog):
     """Test health_report does not log when status is green."""
     body = {"status": "green", "indicators": {}}
     data = ObjectApiResponse(body, META)
-    health_report(data)
+    with debug.change_level(1):
+        # Set debug level to 1 to avoid logging in the test
+        health_report(data)
     assert len(caplog.records) == 0
 
 

@@ -3,9 +3,9 @@
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
-import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
+from .debug import debug, begin_end
 from .defaults import RELOCATE
 
 if t.TYPE_CHECKING:
@@ -60,6 +60,7 @@ class Relocate(Waiter):
         debug.lv3('Relocate object initialized')
 
     @property
+    @begin_end()
     def finished_state(self) -> bool:
         """
         Return the boolean state of whether all shards in the index are 'STARTED'
@@ -72,12 +73,10 @@ class Relocate(Waiter):
         :getter: Returns whether the shards are all ``STARTED``
         :type: bool
         """
-        debug.lv2('Starting method...')
         _ = self.routing_table()
         if not _:
             logger.warning(f'No routing table data for index "{self.name}"')
-            debug.lv3('Exiting method, returning value')
-            debug.lv5('Value = False')
+            debug.lv5('Return value = False')
             return False
         try:
             debug.lv4('TRY: Getting shard state data')
@@ -85,17 +84,16 @@ class Relocate(Waiter):
                 all(shard['state'] == "STARTED" for shard in shards)
                 for shards in _.values()
             )
-            debug.lv3('Exiting method, returning value')
-            debug.lv5(f'Value = {retval}')
+            debug.lv5(f'Return value = {retval}')
             return retval
         except KeyError as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'KeyError in finished_state for index "{self.name}"')
-            debug.lv3('Exiting method, returning value')
-            debug.lv5('Value = False')
+            debug.lv5('Return value = False')
             return False
 
+    @begin_end()
     def routing_table(self) -> t.Dict[str, t.List[t.Dict[str, str]]]:
         """
         This method calls :py:meth:`cluster.state()
@@ -118,7 +116,6 @@ class Relocate(Waiter):
         :getter: Returns the shard routing table
         :type: t.Dict[str, t.List[t.Dict[str, str]]]
         """
-        debug.lv2('Starting method...')
         msg = f'Unable to get routing table data from cluster state for {self.name}'
         fpath = f'routing_table.indices.{self.name}'
         try:
@@ -137,25 +134,23 @@ class Relocate(Waiter):
             self.exceptions_raised += 1
             self.add_exception(exc)  # Append the error to self._exceptions
             logger.critical(f'{msg} because of {exc}')
-            debug.lv3('Exiting method, returning value')
-            debug.lv5('Value = {}')
+            debug.lv5('Return value = {}')
             return {}
 
         # Actually return the result
         try:
             debug.lv4('TRY: Getting shard routing table data')
             retval = result['routing_table']['indices'][self.name]['shards']
-            debug.lv3('Exiting method, returning value')
-            debug.lv5(f'Value = {retval}')
+            debug.lv5(f'Return value = {retval}')
             return retval
         except KeyError as err:
             self.exceptions_raised += 1
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'{msg} because of {err}')
-            debug.lv3('Exiting method, returning value')
-            debug.lv5('Value = {}')
+            debug.lv5('Return value = {}')
             return {}
 
+    @begin_end()
     def check(self) -> bool:
         """
         This method gets the value from property :py:meth:`finished_state` and returns
@@ -164,7 +159,6 @@ class Relocate(Waiter):
         :returns: Returns if the check was complete
         :rtype: bool
         """
-        debug.lv2('Starting method...')
         self.too_many_exceptions()
         try:
             debug.lv4('TRY: Getting finished_state value')
@@ -176,6 +170,5 @@ class Relocate(Waiter):
             finished = False
         if finished:
             debug.lv1(f'Relocate Check for index: "{self.name}" has passed.')
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {finished}')
+        debug.lv5(f'Return value = {finished}')
         return finished

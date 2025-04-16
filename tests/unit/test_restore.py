@@ -129,6 +129,7 @@ class TestRestoreMore:
 
 def test_check_empty_response(caplog):
     """Test that check returns False when get_recovery returns an empty response"""
+    caplog.set_level(logging.DEBUG)
     client = MagicMock()
     restore = Restore(client=client, index_list=['index1', 'index2'])
     restore.get_recovery = MagicMock(return_value={})
@@ -138,6 +139,7 @@ def test_check_empty_response(caplog):
 
 def test_check_partial_recovery(caplog):
     """Test that check returns False when not all indices are recovered"""
+    caplog.set_level(logging.DEBUG)
     client = MagicMock()
     restore = Restore(client=client, index_list=['index1', 'index2'])
     restore.get_recovery = MagicMock(

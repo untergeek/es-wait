@@ -6,8 +6,8 @@ import logging
 import warnings
 from time import localtime, strftime
 from dotmap import DotMap  # type: ignore
-import tiered_debug as debug
 from elasticsearch8.exceptions import GeneralAvailabilityWarning
+from .debug import debug, begin_end
 from ._base import Waiter
 from .defaults import TASK
 from .utils import prettystr
@@ -53,6 +53,7 @@ class Task(Waiter):
         debug.lv3('Task object initialized')
 
     @property
+    @begin_end()
     def task_complete(self) -> bool:
         """
         Process :py:attr:`task` and :py:attr:`task_data` to see if the task has
@@ -62,7 +63,6 @@ class Task(Waiter):
         return ``True``. If the task is not completed, it will log some information
         about the task and return ``False``
         """
-        debug.lv2('Starting method...')
         running_time = 0.000000001 * self.task.running_time_in_nanos  # type: ignore
         debug.lv3(f'Running time: {running_time} seconds')
         if self.task_data.completed:  # type: ignore
@@ -87,10 +87,10 @@ class Task(Waiter):
             )
             debug.lv3(msg)
             retval = False
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval
 
+    @begin_end()
     def check(self) -> bool:
         """
         This function calls :py:meth:`tasks.get()
@@ -105,7 +105,6 @@ class Task(Waiter):
         :getter: Returns if the check was complete
         :type: bool
         """
-        debug.lv2('Starting method...')
         # The properties for task_data
         # TASK_DATA
         # self.task_data.response = {}
@@ -145,10 +144,10 @@ class Task(Waiter):
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error in reindex_check: {prettystr(err)}')
             return False
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {self.task_complete}')
+        debug.lv5(f'Return value = {self.task_complete}')
         return self.task_complete
 
+    @begin_end()
     def reindex_check(self) -> None:
         """
         Check to see if the task is a reindex operation. The task may be "complete" but
@@ -157,7 +156,6 @@ class Task(Waiter):
 
         Gets data from :py:attr:`task` and :py:attr:`task_data`.
         """
-        debug.lv2('Starting method...')
         if self.task.action == 'indices:data/write/reindex':  # type: ignore
             debug.lv5("It's a REINDEX task")
             debug.lv5(f'TASK_DATA: {prettystr(self.task_data.toDict())}')
@@ -174,4 +172,3 @@ class Task(Waiter):
                     logger.error(msg)
                     debug.lv3('Exiting method, raising ValueError')
                     raise ValueError(msg)
-            debug.lv3('Exiting method')

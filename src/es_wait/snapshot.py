@@ -3,8 +3,8 @@
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
-import tiered_debug as debug
 from ._base import Waiter
+from .debug import debug, begin_end
 from .defaults import SNAPSHOT
 from .utils import prettystr
 
@@ -29,7 +29,7 @@ class Snapshot(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        debug.lv2('Starting method...')
+        debug.lv2('Initializing Snapshot object...')
         #: The snapshot name
         self.snapshot = snapshot
         #: The repository name
@@ -66,6 +66,7 @@ class Snapshot(Waiter):
             ) from err
         return result
 
+    @begin_end()
     def check(self) -> bool:
         """
         Get the state of the snapshot from :py:meth:`snapstate` to determine if the
@@ -79,7 +80,6 @@ class Snapshot(Waiter):
         :getter: Returns if the check was complete
         :type: bool
         """
-        debug.lv2('Starting method...')
         self.too_many_exceptions()
         try:
             debug.lv4('TRY: Getting snapshot state')
@@ -96,10 +96,10 @@ class Snapshot(Waiter):
             retval = False
         if retval:
             self.log_completion(state)
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval
 
+    @begin_end()
     def log_completion(self, state: str) -> None:
         """
         Log completion based on ``state``
@@ -128,9 +128,7 @@ class Snapshot(Waiter):
 
         :param state: The snapshot state
         """
-        debug.lv2('Starting method...')
         msg = f'Snapshot {self.snapshot} completed with state: {state}'
         statemap = {'SUCCESS': logger.info, 'FAILED': logger.error}
         logfunc = statemap.get(state, logger.warning)
         logfunc(msg)
-        debug.lv3('Exiting method')

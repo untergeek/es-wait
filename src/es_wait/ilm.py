@@ -4,9 +4,9 @@
 import typing as t
 import logging
 from dotmap import DotMap  # type: ignore
-import tiered_debug as debug
 from elasticsearch8.exceptions import NotFoundError
 from ._base import Waiter
+from .debug import debug, begin_end
 from .defaults import ILM
 from .exceptions import IlmWaitError
 from .utils import prettystr
@@ -60,13 +60,13 @@ class IndexLifecycle(Waiter):
             self.explain.action == 'complete' and self.explain.step == 'complete'
         )
 
+    @begin_end()
     def get_explain_data(self) -> t.Union[t.Dict, None]:
         """
         This method calls :py:meth:`ilm.explain_lifecycle()
         <elasticsearch.client.IlmClient.explain_lifecycle>` with :py:attr:`name` and
         returns the resulting response.
         """
-        debug.lv2('Starting method...')
         try:
             debug.lv4('TRY: Getting ILM explain data...')
             resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
@@ -100,8 +100,7 @@ class IndexLifecycle(Waiter):
             logger.critical(msg)
             raise IlmWaitError(f'{msg}. Exception: {prettystr(err)}') from err
         retval = resp['indices'][self.name]
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {prettystr(retval)}')
+        debug.lv5(f'Return value = {prettystr(retval)}')
         return retval
 
 
@@ -162,6 +161,7 @@ class IlmPhase(IndexLifecycle):
             self.phase_by_num(self.explain.phase) < self.phase_by_num(self.phase)
         )
 
+    @begin_end()
     def has_explain(self) -> bool:
         """Check if the explain data is present
         :returns: boolean of "The explain data is present"
@@ -179,15 +179,14 @@ class IlmPhase(IndexLifecycle):
             debug.lv3('Exiting method, returning value')
             debug.lv5('Value = False')
             return False
-        debug.lv3('Exiting method, returning value')
-        debug.lv5('Value = True')
+        debug.lv5('Return value = True')
         return True
 
+    @begin_end()
     def reached_phase(self) -> bool:
         """Check if the phase is what we expect
         :returns: boolean of "The phase reached its target"
         """
-        debug.lv2('Starting method...')
         if self.phase_gte and self.phase == 'new':
             debug.lv2('ILM Phase: new is complete')
             debug.lv3('Exiting method, returning value')
@@ -207,10 +206,10 @@ class IlmPhase(IndexLifecycle):
             debug.lv3('Exiting method, returning value')
             debug.lv5('Value = False')
             return False
-        debug.lv3('Exiting method, returning value')
-        debug.lv5('Value = True')
+        debug.lv5('Return value = True')
         return True  # The phase is now gte to the target phase
 
+    @begin_end()
     def phase_stuck(self, max_stuck_count: int = 3) -> bool:
         """Check if the phase is stuck
         :param int max_stuck_count: The maximum number of times the phase can be stuck
@@ -218,7 +217,6 @@ class IlmPhase(IndexLifecycle):
         :type max_stuck_count: int
         :returns: boolean of "The phase is stuck"
         """
-        debug.lv2('Starting method...')
         if self.stuck_count >= max_stuck_count:
             if self.advanced:
                 msg = (
@@ -249,10 +247,10 @@ class IlmPhase(IndexLifecycle):
             debug.lv3('Exiting method, returning value')
             debug.lv5('Value = True')
             return True  # The phase was stuck
-        debug.lv3('Exiting method, returning value')
-        debug.lv5('Value = False')
+        debug.lv5('Return value = False')
         return False  # The phase was not stuck
 
+    @begin_end()
     def check(self, max_stuck_count: int = 3) -> bool:
         """Check the ILM phase transition
 
@@ -275,7 +273,6 @@ class IlmPhase(IndexLifecycle):
         :returns: Returns if the check was complete
         :rtype: bool
         """
-        debug.lv2('Starting method...')
         self.too_many_exceptions()
         if not self.has_explain():
             return False
@@ -286,13 +283,12 @@ class IlmPhase(IndexLifecycle):
             return False
         debug.lv2('ILM Phase not stuck.')
         retval = self.reached_phase()
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval
 
+    @begin_end()
     def phase_by_num(self, phase: str) -> int:
         """Map a phase name to a phase number"""
-        debug.lv2('Starting method...')
         _ = {
             'undef': 0,
             'new': 1,
@@ -303,10 +299,10 @@ class IlmPhase(IndexLifecycle):
             'delete': 6,
         }
         retval = _.get(phase, 0)  # Default to 0/undef if not found
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval
 
+    @begin_end()
     def phase_by_name(self, num: int) -> str:
         """Map a phase number to a phase name"""
         debug.lv2('Starting method...')
@@ -320,8 +316,7 @@ class IlmPhase(IndexLifecycle):
             6: 'delete',
         }
         retval = _.get(num, 'undef')  # Default to undef if not found
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval
 
 
@@ -352,6 +347,7 @@ class IlmStep(IndexLifecycle):
         self.waitstr = f'for "{self.name}" to complete the current ILM step'
         self.announce()
 
+    @begin_end()
     def check(self) -> bool:
         """
         Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
@@ -376,6 +372,5 @@ class IlmStep(IndexLifecycle):
             retval = False
         else:
             retval = self.phase_complete
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval

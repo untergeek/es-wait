@@ -6,6 +6,7 @@ import logging
 import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
+from .debug import debug, begin_end
 from .defaults import HealthCheckDict, HealthTypes, HEALTH
 from .utils import healthchk_result, prettystr
 
@@ -93,6 +94,7 @@ class Health(Waiter):
         """
         return ','.join(self.check_for.keys())
 
+    @begin_end()
     def check(self) -> bool:
         """
         This function calls :py:meth:`cluster.health()
@@ -106,7 +108,6 @@ class Health(Waiter):
         :returns: True if the condition in 'check_for' is met, False otherwise.
         :rtype: bool
         """
-        debug.lv2('Starting method...')
         self.too_many_exceptions()
         target = self.indices if self.check_type != 'cluster_routing' else '*'
         if self.check_type == 'cluster_routing':
@@ -127,6 +128,5 @@ class Health(Waiter):
             self.add_exception(err)  # Append the error to self._exceptions
             logger.error(f'Error checking health: {prettystr(err)}')
             retval = False
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {retval}')
+        debug.lv5(f'Return value = {retval}')
         return retval

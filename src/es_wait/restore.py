@@ -3,9 +3,9 @@
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
-import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
+from .debug import debug, begin_end
 from .defaults import RESTORE
 from .utils import prettystr
 
@@ -38,6 +38,7 @@ class Restore(Waiter):
         debug.lv3('Restore object initialized')
 
     @property
+    @begin_end()
     def index_list_chunks(self) -> t.Sequence[t.Sequence[str]]:
         """
         This utility chunks very large index lists into 3KB chunks.
@@ -49,7 +50,6 @@ class Restore(Waiter):
         :getter: Returns a list of smaller chunks of :py:attr:`index_list` in lists
         :type: bool
         """
-        debug.lv2('Starting method...')
         chunks = []
         chunk = ""
         for index in self.index_list:
@@ -62,10 +62,10 @@ class Restore(Waiter):
                 chunks.append(chunk.split(','))
                 chunk = index
         chunks.append(chunk.split(','))
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {chunks}')
+        debug.lv5(f'Return value = {chunks}')
         return chunks
 
+    @begin_end()
     def check(self) -> bool:
         """
         Iterates over a list of indices in batched chunks, and calls
@@ -85,7 +85,6 @@ class Restore(Waiter):
         :getter: Returns if the check was complete
         :type: bool
         """
-        debug.lv2('Starting method...')
         response = {}
         for chunk in self.index_list_chunks:
             try:
@@ -100,8 +99,7 @@ class Restore(Waiter):
             if not chunk_response:
                 debug.lv1('_recovery API returned an empty response. Trying again.')
                 self.exceptions_raised += 1  # Repeated empties as exceptions
-                debug.lv3('Exiting method, returning value')
-                debug.lv5('Value = False')
+                debug.lv5('Return value = False')
                 return False
             response.update(chunk_response)
         debug.lv3(f'Provided indices: {prettystr(self.index_list)}')
@@ -114,10 +112,10 @@ class Restore(Waiter):
                     return False
 
         # If we've gotten here, all of the indices have recovered
-        debug.lv3('Exiting method, returning value')
-        debug.lv5('Value = True')
+        debug.lv5('Return value = True')
         return True
 
+    @begin_end()
     def get_recovery(self, chunk: t.Sequence[str]) -> t.Dict:
         """
         Calls :py:meth:`indices.recovery()
@@ -135,7 +133,6 @@ class Restore(Waiter):
         :returns: The response from the recovery API for the provided chunk
         :rtype: dict
         """
-        debug.lv2('Starting method...')
         chunk_response = {}
         try:
             debug.lv4('TRY: Getting index recovery information')
@@ -156,6 +153,5 @@ class Restore(Waiter):
             )
             logger.warning(msg)
             self.add_exception(err)  # Append the error to self._exceptions
-        debug.lv3('Exiting method, returning value')
-        debug.lv5(f'Value = {chunk_response}')
+        debug.lv5(f'Return value = {chunk_response}')
         return chunk_response
