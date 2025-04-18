@@ -1,4 +1,4 @@
-"""Helper and Utility Functions"""
+"""Helper and utility functions for es-wait."""
 
 import typing as t
 import logging
@@ -15,10 +15,23 @@ logger = logging.getLogger('es_wait.utils')
 
 @begin_end()
 def diagnosis_generator(ind: str, data: t.Sequence) -> t.Generator:
-    """
-    Yield diagnosis strings from the provided data
-    :param data: The list from health_report['indicators'][ind]['diagnosis']
-    :type data: list
+    """Yield diagnosis strings from health report data.
+
+    Generates formatted strings for each diagnosis entry in the provided data.
+
+    Args:
+        ind (str): Name of the indicator.
+        data (Sequence): List of diagnosis data from health report.
+
+    Returns:
+        Generator: Yields formatted diagnosis strings.
+
+    Example:
+        >>> data = [{"cause": "issue", "action": "fix", "affected_resources": []}]
+        >>> list(diagnosis_generator("test", data))
+        ['INDICATOR: test: DIAGNOSIS #0: CAUSE: issue',
+         'INDICATOR: test: DIAGNOSIS #0: ACTION: fix',
+         'INDICATOR: test: DIAGNOSIS #0: AFFECTED_RESOURCES: []']
     """
     diag_keys = ['cause', 'action', 'affected_resources']
     for idx, diag in enumerate(data):
@@ -28,10 +41,23 @@ def diagnosis_generator(ind: str, data: t.Sequence) -> t.Generator:
 
 @begin_end()
 def impact_generator(ind: str, data: t.Sequence) -> t.Generator:
-    """
-    Yield impact strings from the provided data
-    :param data: The list from health_report['indicators'][ind]['impact']
-    :type data: list
+    """Yield impact strings from health report data.
+
+    Generates formatted strings for each impact entry in the provided data.
+
+    Args:
+        ind (str): Name of the indicator.
+        data (Sequence): List of impact data from health report.
+
+    Returns:
+        Generator: Yields formatted impact strings.
+
+    Example:
+        >>> data = [{"severity": "high", "description": "issue", "impact_areas": []}]
+        >>> list(impact_generator("test", data))
+        ['INDICATOR: test: IMPACT AREA #0: SEVERITY: high',
+         'INDICATOR: test: IMPACT AREA #0: DESCRIPTION: issue',
+         'INDICATOR: test: IMPACT AREA #0: IMPACT_AREAS: []']
     """
     impact_keys = ['severity', 'description', 'impact_areas']
     for idx, impact in enumerate(data):
@@ -41,10 +67,24 @@ def impact_generator(ind: str, data: t.Sequence) -> t.Generator:
 
 @begin_end()
 def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
-    """
-    Yield symptom, details, and impacts and diagnosis strings for any indicators
-    :param data: Data from health_report['indicators'][ind]
-    :type data: dict
+    """Yield symptom, details, impacts, and diagnosis strings.
+
+    Generates formatted strings for indicator data, including symptoms, details,
+    and calls to diagnosis and impact generators.
+
+    Args:
+        ind (str): Name of the indicator.
+        data (Dict): Indicator data from health report.
+
+    Returns:
+        Generator: Yields formatted indicator strings.
+
+    Example:
+        >>> data = {"symptom": "issue", "details": "details", "impacts": [],
+        ...         "diagnosis": []}
+        >>> list(indicator_generator("test", data))
+        ['INDICATOR: test: SYMPTOM: issue',
+         'INDICATOR: test: DETAILS: details']
     """
     ind_keys = ['symptom', 'details', 'impacts', 'diagnosis']
     gen_map = {'diagnosis': diagnosis_generator, 'impacts': impact_generator}
@@ -58,38 +98,39 @@ def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
 
 @begin_end()
 def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> bool:
-    """
-    Check the health check data from
-    :py:meth:`client.health_check() <elasticsearch.client.health_check>`.
+    """Check Elasticsearch health check data.
 
-    If multiple keys are provided in `check_for`, all must key/value pairs must
-    match for a ``True`` response.
+    Validates if the health check response matches expected key-value pairs.
 
-    If the expected response(s) are in the data, return True, otherwise False.
-    Debug log the results.
+    Args:
+        data (:py:class:`elastic_transport.ObjectApiResponse`): Health check data.
+        check_for (:py:class:`es_wait.defaults.HealthCheckDict`): Expected
+            key-value pairs.
 
-    :param data: The health check data
-    :type data: :py:obj:`ObjectApiResponse <elastic_transport.ObjectApiResponse>`
+    Returns:
+        bool: True if all conditions match, False otherwise.
 
-    :param check_for: The expected response
-    :type check_for: HealthCheckDict
+    Raises:
+        KeyError: If a required key is missing in the response.
 
-    :returns: True if the expected response is in the data, otherwise False
-    :rtype: bool
+    Example:
+        >>> from elastic_transport import ObjectApiResponse
+        >>> data = ObjectApiResponse({"status": "green"})
+        >>> check_for = {"status": "green"}
+        >>> healthchk_result(data, check_for)
+        True
     """
     output = dict(data)
     check = True
     for key, value in check_for.items():
-        # First, verify that the key is in output
         if key not in output:
             raise KeyError(f'Key "{key}" not in cluster health output')
-        # Verify that the output matches the expected value
         if output[key] != value:
             msg = (
                 f'NO MATCH: Value for key "{value}", health check output: '
                 f'{output[key]}'
             )
-            check = False  # We do not match
+            check = False
         else:
             msg = (
                 f'MATCH: Value for key "{value}", health check output: '
@@ -102,12 +143,17 @@ def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> b
 
 @begin_end()
 def health_report(data: "ObjectApiResponse") -> None:
-    """
-    Log the health report data from
-    :py:meth:`client.health_report() <elasticsearch.client.health_report>`.
+    """Log health report data from Elasticsearch.
 
-    :param data: The health report data
-    :type data: :py:obj:`ObjectApiResponse <elastic_transport.ObjectApiResponse>`
+    Logs details for non-green health statuses, including indicators.
+
+    Args:
+        data (:py:class:`elastic_transport.ObjectApiResponse`): Health report data.
+
+    Example:
+        >>> from elastic_transport import ObjectApiResponse
+        >>> data = ObjectApiResponse({"status": "red", "indicators": {}})
+        >>> health_report(data)  # Logs: HEALTH REPORT: STATUS: RED
     """
     rpt = dict(data)
     try:
@@ -121,10 +167,17 @@ def health_report(data: "ObjectApiResponse") -> None:
 
 @begin_end()
 def loop_health_indicators(inds: t.Dict) -> None:
-    """
-    Loop through the indicators and log the data
-    :param inds: The health report indicators
-    :type inds: dict
+    """Log health report indicators.
+
+    Iterates through indicators and logs details for non-green statuses.
+
+    Args:
+        inds (Dict): Health report indicators.
+
+    Example:
+        >>> inds = {"test": {"status": "red", "symptom": "issue"}}
+        >>> loop_health_indicators(inds)
+        ... # Logs: HEALTH REPORT: INDICATOR: test: SYMPTOM: issue
     """
     for ind in inds:
         if isinstance(ind, str):
@@ -135,16 +188,23 @@ def loop_health_indicators(inds: t.Dict) -> None:
 
 @begin_end(begin=5, end=5)
 def prettystr(*args, **kwargs) -> str:
-    """
-    A (nearly) straight up wrapper for :py:meth:`pprint.pformat()
-    <pprint.PrettyPrinter.pformat>`, except that we provide our own default values
-    for `indent` (`2`) and `sort_dicts` (`False`). Primarily for debug logging and
-    showing more readable dictionaries.
+    """Format objects as readable strings.
 
-    'Return the formatted representation of object as a string. indent, width,
-    depth, compact, sort_dicts and underscore_numbers are passed to the
-    PrettyPrinter constructor as formatting parameters' (from pprint
-    documentation).
+    Wraps :py:func:`pprint.pformat` with custom defaults for indent and sorting.
+
+    Args:
+        *args: Objects to format.
+        **kwargs: Formatting options (e.g., indent, width).
+
+    Returns:
+        str: Formatted string representation.
+
+    Example:
+        >>> data = {"key": "value"}
+        >>> print(prettystr(data))
+        {
+          'key': 'value'
+        }
     """
     defaults = [
         ('indent', 2),
@@ -154,13 +214,11 @@ def prettystr(*args, **kwargs) -> str:
         ('sort_dicts', False),
     ]
     if version_info[0] >= 3 and version_info[1] >= 10:
-        # underscore_numbers only works in 3.10 and up
         defaults.append(('underscore_numbers', False))
     kw = {}
     for tup in defaults:
         key, default = tup
         kw[key] = kwargs[key] if key in kwargs else default
-    # newline in front so it's always clean
-    retval = f"\n{pformat(*args, **kw)}"  # type: ignore
+    retval = f"\n{pformat(*args, **kw)}"
     debug.lv5(f'Return value = {retval}')
     return retval

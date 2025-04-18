@@ -1,4 +1,4 @@
-"""Base Waiter Class"""
+"""Base Waiter Class."""
 
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
@@ -24,9 +24,29 @@ logger = logging.getLogger('es_wait.Waiter')
 
 
 class TimeTracker:
-    """Track time for the Waiter class"""
+    """Track time for wait operations.
+
+    Manages elapsed time and determines when to log progress based on frequency.
+
+    Args:
+        log_frequency (int): Seconds between log messages (default: 5).
+
+    Attributes:
+        log_frequency (int): Seconds between log messages.
+        start_time (:py:class:`datetime.datetime`): Start time in UTC.
+    """
 
     def __init__(self, log_frequency: int = 5) -> None:
+        """Initialize the TimeTracker.
+
+        Args:
+            log_frequency (int): Seconds between log messages (default: 5).
+
+        Example:
+            >>> tracker = TimeTracker(log_frequency=5)
+            >>> tracker.log_frequency
+            5
+        """
         debug.lv2('Initializing TimeTracker object...')
         self.log_frequency = log_frequency
         self.start_time = self.now
@@ -34,73 +54,109 @@ class TimeTracker:
 
     @property
     def elapsed(self) -> float:
-        """
-        :getter: Returns the elapsed time in seconds
-        :type: float
+        """Return the elapsed time in seconds.
+
+        Returns:
+            float: Elapsed time since initialization in seconds.
         """
         return (self.now - self.start_time).total_seconds()
 
     @property
     def now(self) -> datetime:
-        """
-        :getter: Returns the time 'now' in the UTC timezone
-        :type: datetime
+        """Return the current time in UTC.
+
+        Returns:
+            :py:class:`datetime.datetime`: Current time in UTC.
         """
         return datetime.now(timezone.utc)
 
     @property
     def should_log(self) -> bool:
-        """
-        Determine if a log message should be generated based on the elapsed time
-        and frequency. If the elapsed time is 0, then no log message will be
-        generated.
+        """Check if a log message should be generated.
 
-        :rtype: bool
-        :return: Whether a log message should be generated.
+        Returns True if elapsed time is non-zero and a multiple of log_frequency.
+
+        Returns:
+            bool: True if a log message should be generated, False otherwise.
+
+        Example:
+            >>> tracker = TimeTracker(log_frequency=5)
+            >>> tracker.elapsed = 5.0  # Simulate 5 seconds
+            >>> tracker.should_log
+            True
         """
         if int(self.elapsed) == 0:
             return False
-        return int(self.elapsed) % self.log_frequency == 0  # Only frequency seconds
+        return int(self.elapsed) % self.log_frequency == 0
 
 
 class Waiter:
-    """Waiter Parent Class"""
+    """Base class for waiting on Elasticsearch operations.
+
+    Manages polling, timeouts, and exceptions for tasks like index relocation or
+    snapshot completion.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 9.0).
+        timeout (float): Max wait time in seconds (default: 15.0, -1 for no timeout).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+
+    Attributes:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks.
+        timeout (float): Max wait time in seconds.
+        max_exceptions (int): Max allowed exceptions.
+        exceptions_raised (int): Number of exceptions raised.
+        do_health_report (bool): If True, logs health report on failure.
+        waitstr (str): Description of the wait operation.
+    """
 
     def __init__(
         self,
         client: 'Elasticsearch',
-        pause: float = BASE.get('pause', 9.0),  # The delay between checks
-        timeout: float = BASE.get('timeout', 15.0),  # How long is too long
-        max_exceptions: int = BASE.get(
-            'max_exceptions', 10
-        ),  # The maximum number of exceptions to allow
+        pause: float = BASE.get('pause', 9.0),
+        timeout: float = BASE.get('timeout', 15.0),
+        max_exceptions: int = BASE.get('max_exceptions', 10),
     ) -> None:
+        """Initialize the Waiter.
+
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 9.0).
+            timeout (float): Max wait time in seconds (default: 15.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> waiter = Waiter(client, pause=5.0, timeout=30.0)
+            >>> waiter.pause
+            5.0
+        """
         debug.lv2('Initializing Waiter object...')
-        #: An :py:class:`Elasticsearch <elasticsearch.Elasticsearch>` client instance
         self.client = client
-        #: The delay between checks for completion
         self.pause = pause
-        #: The number of seconds before giving up. -1 means no timeout.
         self.timeout = timeout
-        #: The maximum number of exceptions to allow
         self.max_exceptions = max_exceptions
-        #: A list of exceptions raised during the wait
         self._exceptions = []
-        #: The number of exceptions raised
         self.exceptions_raised = 0
         self.waitstr = 'for Waiter class to initialize'
-        #: Only changes to True in certain circumstances
         self.do_health_report = False
         debug.lv3('Waiter object initialized')
 
     @property
     def exception_count_msg(self) -> str:
-        """
-        This property returns a messgage showing the current number of exceptions
-        raised and the maximum number of exceptions allowed.
+        """Return a message showing the number of exceptions raised.
 
-        :getter: Returns 'X exceptions raised out of Y allowed'
-        :type: str
+        Returns:
+            str: Message with current and max allowed exceptions.
+
+        Example:
+            >>> waiter = Waiter(client, max_exceptions=10)
+            >>> waiter.exceptions_raised = 2
+            >>> waiter.exception_count_msg
+            '2 exceptions raised out of 10 allowed'
         """
         return (
             f'{self.exceptions_raised} exceptions raised out of '
@@ -109,50 +165,56 @@ class Waiter:
 
     @property
     def exceptions(self) -> list:
-        """
-        This property returns a list of exceptions raised during the wait.
+        """Return the list of exceptions raised during the wait.
 
-        :getter: Returns a list of exceptions raised
-        :type: list
+        Returns:
+            list: List of exceptions raised.
         """
         return self._exceptions
 
     def add_exception(self, value: Exception) -> None:
-        """
-        This method appends `value` the exceptions list.
+        """Append an exception to the exceptions list.
 
-        :param value: An exception to add
-        :type value: Exception
+        Args:
+            value (:py:class:`Exception`): Exception to add.
         """
         self._exceptions.append(value)
 
     @begin_end()
     def announce(self) -> None:
-        """
-        This method is called when the Waiter class is initialized. It logs a
-        level 1 debug message using :py:attr:`waitstr`.
+        """Log the start of the wait operation.
+
+        Example:
+            >>> waiter = Waiter(client)
+            >>> waiter.waitstr = "test wait"
+            >>> waiter.announce()  # Logs: "The wait test wait is starting..."
         """
         debug.lv1(f'The wait {self.waitstr} is starting...')
 
     def check(self) -> bool:
-        """
-        This will be redefined by each child class
+        """Check if the task is complete (to be overridden by subclasses).
 
-        :getter: Returns if the check was complete
-        :type: bool
+        Returns:
+            bool: True if the task is complete, False otherwise.
         """
         return False
 
     def _ensure_not_none(self, name: str) -> None:
-        """
-        Raise a :py:exc:`ValueError` if the instance attribute `name` is None. This
-        method literally just checks:
+        """Raise ValueError if an attribute is None.
 
-          .. code-block:: python
+        Args:
+            name (str): Name of the attribute to check.
 
-             if getattr(self, name) is None:
+        Raises:
+            ValueError: If the attribute is None.
 
-        :param name: The name of an instance attribute.
+        Example:
+            >>> waiter = Waiter(client)
+            >>> waiter.name = None
+            >>> waiter._ensure_not_none("name")
+            Traceback (most recent call last):
+                ...
+            ValueError: Keyword arg name cannot be None
         """
         if getattr(self, name) is None:
             msg = f'Keyword arg {name} cannot be None'
@@ -161,9 +223,18 @@ class Waiter:
 
     @begin_end()
     def too_many_exceptions(self) -> None:
-        """
-        If the number of exceptions raised is greater than or equal to the maximum
-        number of exceptions allowed, then a :py:exc:`ExceptionCount` will be raised.
+        """Raise ExceptionCount if too many exceptions occurred.
+
+        Raises:
+            :py:class:`es_wait.exceptions.ExceptionCount`: If exceptions exceed max.
+
+        Example:
+            >>> waiter = Waiter(client, max_exceptions=1)
+            >>> waiter.exceptions_raised = 2
+            >>> waiter.too_many_exceptions()
+            Traceback (most recent call last):
+                ...
+            ExceptionCount: Check for Waiter class to initialize has failed...
         """
         if self.exceptions_raised >= self.max_exceptions:
             msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
@@ -174,28 +245,28 @@ class Waiter:
 
     @begin_end()
     def wait(self, frequency: int = 5) -> None:
+        """Wait until the task completes or times out.
+
+        Polls the task every `pause` seconds, logging progress every `frequency`
+        seconds. Raises an exception on timeout or too many errors.
+
+        Args:
+            frequency (int): Seconds between progress logs (default: 5).
+
+        Raises:
+            :py:class:`es_wait.exceptions.EsWaitTimeout`: If task exceeds timeout.
+            :py:class:`es_wait.exceptions.EsWaitFatal`: If a fatal error occurs.
+            :py:class:`es_wait.exceptions.ExceptionCount`: If max_exceptions exceeded.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> waiter = Waiter(client, pause=5.0, timeout=30.0)
+            >>> try:
+            ...     waiter.wait(frequency=10)
+            ... except EsWaitTimeout as e:
+            ...     print(f"Timed out after {e.elapsed} seconds")
         """
-        This method is where the actual waiting occurs. Depending on what `frequency`
-        is set to, you should see `non-DEBUG` level logs no more than every `frequency`
-        seconds.
-
-        If :py:attr:`timeout` has been reached without :py:meth:`check` returning as
-        ``True``, then a :py:exc:`TimeoutError` will be raised.
-
-        If :py:meth:`check` returns ``False``, then the method will wait
-        :py:attr:`pause` seconds before calling :py:meth:`check` again.
-
-        Elapsed time will be logged every `frequency` seconds, when :py:meth:`check` is
-        ``True``, or when :py:attr:`timeout` is reached.
-
-        If :py:attr:`do_health_report` is ``True``, then call
-        :py:meth:`client.health_report() <elasticsearch.client.health_report>`
-        and pass the results to
-        :py:func:`utils.health_report() <es_wait.utils.health_report>`.
-
-        :param frequency: The number of seconds between log reports on progress.
-        """
-        # Now with this mapped, we can perform the wait as indicated.
         tracker = TimeTracker(log_frequency=frequency)
         success = False
         debug.lv2(f'Only logging every {frequency} seconds')
@@ -210,22 +281,17 @@ class Waiter:
                 raise EsWaitFatal(
                     self.exception_count_msg, tracker.elapsed, tuple(self.exceptions)
                 ) from err
-            except (
-                EsWaitException,
-                IlmWaitError,
-            ) as err:  # Catch any other local Exceptions
+            except (EsWaitException, IlmWaitError) as err:
                 msg = f'An error occurred: {prettystr(err)}'
                 debug.lv3('Exiting method, raising exception')
                 logger.critical(msg)
                 raise EsWaitFatal(msg, tracker.elapsed, tuple(self.exceptions)) from err
-            # Successfully completed task.
             if response:
                 debug.lv2(f'The wait {self.waitstr} is over.')
                 total = f'{tracker.elapsed:.2f}'
                 debug.lv3(f'Elapsed time: {total} seconds')
                 success = True
                 break
-            # Not success, and reached timeout (if defined)
             if (self.timeout != -1) and (tracker.elapsed >= self.timeout):
                 msg = (
                     f'The {self.waitstr} did not complete within {self.timeout} '
@@ -233,7 +299,6 @@ class Waiter:
                 )
                 logger.error(msg)
                 break
-            # Not timed out and not yet success, so we wait.
             if tracker.should_log:
                 msg = (
                     f'The wait {self.waitstr} is ongoing. {tracker.elapsed} '

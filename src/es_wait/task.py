@@ -1,11 +1,11 @@
-"""Task Completion Waiter"""
+"""Task Completion Waiter."""
 
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
 import warnings
 from time import localtime, strftime
-from dotmap import DotMap  # type: ignore
+from dotmap import DotMap
 from elasticsearch8.exceptions import GeneralAvailabilityWarning
 from .debug import debug, begin_end
 from ._base import Waiter
@@ -19,7 +19,36 @@ logger = logging.getLogger(__name__)
 
 
 class Task(Waiter):
-    """Wait for a task to complete"""
+    """Wait for an Elasticsearch task to complete.
+
+    Polls the tasks.get API to check if a task (e.g., reindex) is complete.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 9.0).
+        timeout (float): Max wait time in seconds (default: 7200.0).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+        action (Literal['forcemerge', 'reindex', 'update_by_query']): Task type
+            (default: 'reindex').
+        task_id (str): Task identifier (default: '').
+
+    Attributes:
+        action (Literal['forcemerge', 'reindex', 'update_by_query']): Task type.
+        task_id (str): Task identifier.
+        task_data (DotMap): Task data from tasks.get API.
+        task (DotMap): Task details from task_data.
+        failure_count (int): Number of task failures.
+        waitstr (str): Description of the wait operation.
+
+    Raises:
+        ValueError: If `task_id` is empty or `action` is invalid.
+
+    Example:
+        >>> from elasticsearch8 import Elasticsearch
+        >>> client = Elasticsearch()
+        >>> task = Task(client, action="reindex", task_id="123")
+        >>> task.wait()
+    """
 
     def __init__(
         self,
@@ -30,59 +59,100 @@ class Task(Waiter):
         action: t.Literal['forcemerge', 'reindex', 'update_by_query'] = 'reindex',
         task_id: str = '',
     ) -> None:
+        """Initialize the Task waiter.
+
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 9.0).
+            timeout (float): Max wait time in seconds (default: 7200.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+            action (Literal['forcemerge', 'reindex', 'update_by_query']): Task
+                type (default: 'reindex').
+            task_id (str): Task identifier (default: '').
+
+        Raises:
+            ValueError: If `task_id` is empty or `action` is invalid.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> task = Task(client, action="reindex", task_id="123")
+            >>> task.action
+            'reindex'
+        """
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
         debug.lv2('Initializing Task object...')
-        #: The action to wait for
         self.action = action
         if action not in ['forcemerge', 'reindex', 'update_by_query']:
             msg = 'The action must be one of forcemerge, reindex, or update_by_query'
             logger.error(msg)
             raise ValueError(msg)
-        #: The task identification string
         self.task_id = task_id
         self._ensure_not_none('task_id')
-        #: The :py:meth:`tasks.get() <elasticsearch.client.TasksClient.get>` results
         self.task_data = None
-        #: The contents of :py:attr:`task_data['task'] <task_data>`
         self.task = None
         self.failure_count = 0
         self.waitstr = f'for the "{self.action}" task to complete'
         self.announce()
         debug.lv3('Task object initialized')
 
+    def __repr__(self) -> str:
+        """Return a string representation of the Task instance.
+
+        Returns:
+            str: String representation including action, task_id, waitstr, and
+                pause.
+
+        Example:
+            >>> task = Task(client, action="reindex", task_id="123", pause=9.0)
+            >>> repr(task)
+            'Task(action="reindex", task_id="123", waitstr="for the \"reindex\"
+            task to complete", pause=9.0)'
+        """
+        parts = [
+            f"action={self.action!r}",
+            f"task_id={self.task_id!r}",
+            f"waitstr={self.waitstr!r}",
+            f"pause={self.pause}",
+        ]
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
     @property
     @begin_end()
     def task_complete(self) -> bool:
-        """
-        Process :py:attr:`task` and :py:attr:`task_data` to see if the task has
-        completed, or is still running.
+        """Check if the task is complete.
 
-        If :py:attr:`task_data` contains ``'completed': True``, then it will
-        return ``True``. If the task is not completed, it will log some information
-        about the task and return ``False``
+        Returns True if the task is marked as completed, False otherwise.
+
+        Returns:
+            bool: True if task is complete, False otherwise.
+
+        Example:
+            >>> task = Task(client, action="reindex", task_id="123")
+            >>> task.task_complete  # Checks task completion status
+            False
         """
-        running_time = 0.000000001 * self.task.running_time_in_nanos  # type: ignore
+        running_time = 0.000000001 * self.task.running_time_in_nanos
         debug.lv3(f'Running time: {running_time} seconds')
-        if self.task_data.completed:  # type: ignore
+        if self.task_data.completed:
             completion_time = running_time * 1000
-            completion_time += self.task['start_time_in_millis']  # type: ignore
+            completion_time += self.task['start_time_in_millis']
             time_string = strftime(
                 '%Y-%m-%dT%H:%M:%S', localtime(completion_time / 1000)
             )
             msg = (
-                f'Task "{self.task.description}" with task_id '  # type: ignore
+                f'Task "{self.task.description}" with task_id '
                 f'"{self.task_id}" completed at {time_string}'
             )
             debug.lv3(msg)
             retval = True
         else:
-            # Log the task status here.
-            _ = self.task_data.toDict()  # type: ignore
+            _ = self.task_data.toDict()
             debug.lv5(f'Full Task Data: {prettystr(_)}')
             msg = (
-                f'Task "{self.task.description}" with task_id '  # type: ignore
+                f'Task "{self.task.description}" with task_id '
                 f'"{self.task_id}" has been running for {running_time} seconds'
             )
             debug.lv3(msg)
@@ -92,41 +162,31 @@ class Task(Waiter):
 
     @begin_end()
     def check(self) -> bool:
+        """Check if the task is complete.
+
+        Calls tasks.get to update task_data and checks for completion.
+
+        Returns:
+            bool: True if task is complete, False otherwise.
+
+        Raises:
+            ValueError: If task information cannot be obtained.
+
+        Example:
+            >>> task = Task(client, action="reindex", task_id="123")
+            >>> task.check()  # Returns True if task is complete
+            False
         """
-        This function calls :py:meth:`tasks.get()
-        <elasticsearch.client.TasksClient.get>` with the provided ``task_id`` and sets
-        the values for :py:attr:`task_data` and :py:attr:`task` as part of its
-        execution pipeline.
-
-        It then calls :py:meth:`reindex_check` to see if it is a reindex operation.
-
-        Finally, it returns whatever :py:meth:`task_complete` returns.
-
-        :getter: Returns if the check was complete
-        :type: bool
-        """
-        # The properties for task_data
-        # TASK_DATA
-        # self.task_data.response = {}
-        # self.task_data.completed = False
-        # self.task_data.task = {} -> Becomes TASK
-        # TASK
-        # self.task.action = str
-        # self.task.description = str
-        # self.task.running_time_in_nanos = 0
         self.too_many_exceptions()
         response = {}
         try:
-            # The Tasks API is not yet GA. We need to suppress the warning for now.
-            # This is required after elasticsearch8>=8.16.0 as the warning is raised
-            # from that release onward.
             debug.lv4('TRY: Getting task information')
             warnings.filterwarnings("ignore", category=GeneralAvailabilityWarning)
             response = dict(self.client.tasks.get(task_id=self.task_id))
             debug.lv5(f'tasks.get response: {response}')
         except Exception as err:
             self.exceptions_raised += 1
-            self.add_exception(err)  # Append the error to self._exceptions
+            self.add_exception(err)
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
                 f'Response: {prettystr(response)} -- '
@@ -135,13 +195,13 @@ class Task(Waiter):
             logger.error(msg)
             return False
         self.task_data = DotMap(response)
-        self.task = self.task_data.task  # type: ignore
+        self.task = self.task_data.task
         try:
             debug.lv4('TRY: Checking for reindex task')
             self.reindex_check()
         except ValueError as err:
             self.exceptions_raised += 1
-            self.add_exception(err)  # Append the error to self._exceptions
+            self.add_exception(err)
             logger.error(f'Error in reindex_check: {prettystr(err)}')
             return False
         debug.lv5(f'Return value = {self.task_complete}')
@@ -149,22 +209,26 @@ class Task(Waiter):
 
     @begin_end()
     def reindex_check(self) -> None:
-        """
-        Check to see if the task is a reindex operation. The task may be "complete" but
-        had one or more failures. Raise a :py:exc:`ValueError` exception if errors were
-        encountered.
+        """Check for reindex task failures.
 
-        Gets data from :py:attr:`task` and :py:attr:`task_data`.
+        Raises a ValueError if the reindex task has failures.
+
+        Raises:
+            ValueError: If reindex task has failures.
+
+        Example:
+            >>> task = Task(client, action="reindex", task_id="123")
+            >>> task.reindex_check()  # Raises ValueError if failures exist
         """
-        if self.task.action == 'indices:data/write/reindex':  # type: ignore
+        if self.task.action == 'indices:data/write/reindex':
             debug.lv5("It's a REINDEX task")
             debug.lv5(f'TASK_DATA: {prettystr(self.task_data.toDict())}')
             debug.lv5(
                 f'TASK_DATA keys: ' f'{prettystr(list(self.task_data.toDict().keys()))}'
             )
-            if self.task_data.response.failures:  # type: ignore
-                if len(self.task_data.response.failures) > 0:  # type: ignore
-                    _ = self.task_data.response.failures  # type: ignore
+            if self.task_data.response.failures:
+                if len(self.task_data.response.failures) > 0:
+                    _ = self.task_data.response.failures
                     msg = (
                         f'Failures found in the {self.action} response: '
                         f'{prettystr(_)}'
