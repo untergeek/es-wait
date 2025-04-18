@@ -1,4 +1,4 @@
-"""Entity Exists Waiter"""
+"""Entity Exists Waiter."""
 
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
@@ -15,7 +15,33 @@ logger = logging.getLogger(__name__)
 
 
 class Exists(Waiter):
-    """Wait for an entity to 'exist' according to Elasticsearch"""
+    """Wait for an Elasticsearch entity to exist.
+
+    Polls the cluster to check if an entity (e.g., index, data stream) exists.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 1.5).
+        timeout (float): Max wait time in seconds (default: 10.0).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+        name (str): Entity name (default: '').
+        kind (:py:class:`es_wait.defaults.ExistsTypes`): Entity type
+            (default: 'index').
+
+    Attributes:
+        name (str): Entity name.
+        kind (:py:class:`es_wait.defaults.ExistsTypes`): Entity type.
+        waitstr (str): Description of the wait operation.
+
+    Raises:
+        ValueError: If `name` is empty or `kind` is invalid.
+
+    Example:
+        >>> from elasticsearch8 import Elasticsearch
+        >>> client = Elasticsearch()
+        >>> exists = Exists(client, name="my-index", kind="index")
+        >>> exists.wait()
+    """
 
     def __init__(
         self,
@@ -26,61 +52,78 @@ class Exists(Waiter):
         name: str = '',
         kind: ExistsTypes = 'index',
     ) -> None:
-        """Init the Exists class
+        """Initialize the Exists waiter.
 
-        :param client: The Elasticsearch client
-        :type client: Elasticsearch
-        :param pause: The delay between checks. Default is 1.5
-        :type pause: float
-        :param timeout: How long is too long. Default is 10.0
-        :type timeout: float
-        :param max_exceptions: The maximum number of exceptions to allow. Default is 10
-        :type max_exceptions: int
-        :param name: The entity name
-        :type name: str
-        :param kind: What kind of entity
-        :type kind: ExistsTypes
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 1.5).
+            timeout (float): Max wait time in seconds (default: 10.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+            name (str): Entity name (default: '').
+            kind (:py:class:`es_wait.defaults.ExistsTypes`): Entity type
+                (default: 'index').
 
-        :raises ValueError: If kind is not one of the valid types
+        Raises:
+            ValueError: If `name` is empty or `kind` is invalid.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> exists = Exists(client, name="my-index", kind="index")
+            >>> exists.kind
+            'index'
         """
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
         debug.lv2('Initializing Exists object...')
-        #: The entity name
         self.name = name
         if kind not in EXISTS['types']:
             msg = f'kind must be one of {", ".join(EXISTS["types"])}'
             logger.error(msg)
             raise ValueError(msg)
-        #: What kind of entity
         self.kind = kind
         self._ensure_not_none('name')
         self.waitstr = f'for {kind} "{name}" to exist'
         self.announce()
         debug.lv3('Exists object initialized')
 
-    @begin_end()
-    def check(self) -> bool:
-        """
-        Check if the named entity exists in Elasticsearch. The proper function
-        call is returned by :py:meth:`func_map() <es_wait.exists.func_map>`, which
-        returns a tuple of the function to call and the keyword arguments to pass
-        to that function.
-
-            - 'index': Checks for an index using
-                :py:meth:`indices.exists() <elasticsearch.client.IndicesClient.exists>`
-            - 'data_stream': Checks for a data_stream using
-                :py:meth:`indices.exists() <elasticsearch.client.IndicesClient.exists>`
-            - 'index_template': Checks for an index template using
-                :py:meth:`indices.exists_index_template()
-                <elasticsearch.client.IndicesClient.exists_index_template>`
-            - 'component_template': Checks for a component template using
-                :py:meth:`cluster.exists_component_template()
-                <elasticsearch.client.ClusterClient.exists_component_template>`
+    def __repr__(self) -> str:
+        """Return a string representation of the Exists instance.
 
         Returns:
-            bool: True if the entity exists, False otherwise or if an error occurs.
+            str: String representation including name, kind, waitstr, and pause.
+
+        Example:
+            >>> exists = Exists(client, name="my-index", kind="index", pause=1.5)
+            >>> repr(exists)
+            'Exists(name="my-index", kind="index", waitstr="for index \"my-index\"
+            to exist", pause=1.5)'
+        """
+        parts = [
+            f"name={self.name!r}",
+            f"kind={self.kind!r}",
+            f"waitstr={self.waitstr!r}",
+            f"pause={self.pause}",
+        ]
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
+    @begin_end()
+    def check(self) -> bool:
+        """Check if the named entity exists.
+
+        Uses the appropriate API call based on the entity kind.
+
+        Returns:
+            bool: True if the entity exists, False otherwise.
+
+        Raises:
+            :py:class:`elasticsearch8.exceptions.TransportError`: If API call fails.
+
+        Example:
+            >>> exists = Exists(client, name="my-index", kind="index")
+            >>> exists.check()  # Returns True if index exists
+            False
         """
         func, kwargs = self.func_map()
         self.too_many_exceptions()
@@ -89,7 +132,7 @@ class Exists(Waiter):
             retval = bool(func(**kwargs))
         except TransportError as err:
             self.exceptions_raised += 1
-            self.add_exception(err)  # Append the error to self._exceptions
+            self.add_exception(err)
             msg = f'Error checking for {self.kind} "{self.name}": {err}'
             logger.error(msg)
             retval = False
@@ -98,25 +141,18 @@ class Exists(Waiter):
 
     @begin_end()
     def func_map(self) -> t.Tuple[t.Callable, t.Dict]:
-        """
-        This method maps :py:attr:`kind` to the proper function to call based
-        on the kind of entity we're checking and the keyword arguments to pass
-        to that function.
+        """Map entity kind to the appropriate API call.
 
-        For indices and data_streams, the call is :py:meth:`indices.exists()
-        <elasticsearch.client.IndicesClient.exists>`. The keyword argument is
-        ``index``, with the value :py:attr:`name`.
+        Returns a tuple of the API function and its keyword arguments.
 
-        For index templates, the call is :py:meth:`indices.exists_index_template()
-        <elasticsearch.client.IndicesClient.exists_index_template>`. The keyword
-        argument is ``name``, with the value :py:attr:`name`.
+        Returns:
+            Tuple[Callable, Dict]: Function to call and its keyword arguments.
 
-        For component templates, it is :py:meth:`cluster.exists_component_template()
-        <elasticsearch.client.ClusterClient.exists_component_template>`. The keyword
-        argument is ``name``, with the value :py:attr:`name`.
-
-        :returns: Tuple of the function to call and the keyword arguments
-        :rtype: tuple
+        Example:
+            >>> exists = Exists(client, name="my-index", kind="index")
+            >>> func, kwargs = exists.func_map()
+            >>> callable(func) and isinstance(kwargs, dict)
+            True
         """
         _ = {
             'index': (self.client.indices.exists, {'index': self.name}),
@@ -130,6 +166,6 @@ class Exists(Waiter):
                 {'name': self.name},
             ),
         }
-        retval = _[self.kind]  # __init__ ensures self.kind is valid
+        retval = _[self.kind]
         debug.lv5(f'Return value = {retval}')
         return retval

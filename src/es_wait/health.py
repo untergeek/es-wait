@@ -1,9 +1,8 @@
-"""Health Check Waiter"""
+"""Health Check Waiter."""
 
 # pylint: disable=R0902,R0913,R0917,W0718
 import typing as t
 import logging
-import tiered_debug as debug
 from elasticsearch8.exceptions import TransportError
 from ._base import Waiter
 from .debug import debug, begin_end
@@ -27,7 +26,36 @@ WAITSTR_MAP = {
 
 
 class Health(Waiter):
-    """Wait for health check result to be the expected state"""
+    """Wait for Elasticsearch cluster health conditions.
+
+    Polls the cluster health to check conditions like green status or no
+    relocating shards.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 1.5).
+        timeout (float): Max wait time in seconds (default: 15.0).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+        check_type (:py:class:`es_wait.defaults.HealthTypes`): Health check type
+            (default: 'status').
+        indices (Union[str, List[str], None]): Indices to check (default: None).
+        check_for (:py:class:`es_wait.defaults.HealthCheckDict`, optional):
+            Custom conditions (default: None).
+
+    Attributes:
+        check_type (:py:class:`es_wait.defaults.HealthTypes`): Health check type.
+        indices (str): Comma-separated indices or '*' for all.
+        check_for (:py:class:`es_wait.defaults.HealthCheckDict`): Expected
+            conditions.
+        waitstr (str): Description of the wait operation.
+        do_health_report (bool): Always True to log health report on failure.
+
+    Example:
+        >>> from elasticsearch8 import Elasticsearch
+        >>> client = Elasticsearch()
+        >>> health = Health(client, check_type="status")
+        >>> health.wait()
+    """
 
     def __init__(
         self,
@@ -39,33 +67,30 @@ class Health(Waiter):
         indices: t.Optional[t.Union[str, t.List[str]]] = None,
         check_for: t.Optional[HealthCheckDict] = None,
     ) -> None:
-        """
-        Initializes the Health waiter.
+        """Initialize the Health waiter.
 
-        :py:meth:`do_health_report` is set manually to ``True`` for this class
-        so the parent class can log the health report results in the event
-        something goes wrong.
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 1.5).
+            timeout (float): Max wait time in seconds (default: 15.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+            check_type (:py:class:`es_wait.defaults.HealthTypes`): Health check
+                type (default: 'status').
+            indices (Union[str, List[str], None]): Indices to check (default: None).
+            check_for (:py:class:`es_wait.defaults.HealthCheckDict`, optional):
+                Custom conditions (default: None).
 
-        :param check_type: The type of health check to perform:
-            One of:
-            - 'status': Wait for the cluster status to be 'green'.
-            - 'relocation': Wait for no relocating shards in specified indices.
-            - 'cluster_routing': Wait for no relocating shards across all indices
-            (ignores 'indices').
-        :param indices: Index or list of indices to check (ignored for
-            'cluster_routing')
-        :param check_for: Custom conditions to check in the health response.
-            Default values:
-            - For 'check_type' = 'status', {'status': 'green'}
-            - For 'check_type' = 'relocation' or 'cluster_routing',
-            {'relocating_shards': 0}.
-            Providing a value here overrides defaults.
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> health = Health(client, check_type="status")
+            >>> health.check_type
+            'status'
         """
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
         debug.lv2('Initializing Health object...')
-        #: The entity name
         self.check_type = check_type
         if self.check_type == 'cluster_routing' and indices is not None:
             logger.warning(
@@ -80,33 +105,57 @@ class Health(Waiter):
         self.announce()
         debug.lv3('Health object initialized')
 
+    def __repr__(self) -> str:
+        """Return a string representation of the Health instance.
+
+        Returns:
+            str: String representation including check_type, indices, waitstr,
+                and pause.
+
+        Example:
+            >>> health = Health(client, check_type="status", pause=1.5)
+            >>> repr(health)
+            'Health(check_type="status", indices="*", waitstr="for cluster health
+            to show green status", pause=1.5)'
+        """
+        parts = [
+            f"check_type={self.check_type!r}",
+            f"indices={self.indices!r}",
+            f"waitstr={self.waitstr!r}",
+            f"pause={self.pause}",
+        ]
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
     @property
     def filter_path(self) -> str:
-        """
-        Define the filter_path based on :py:attr:`check_for`
+        """Get the filter path for health check API calls.
 
-        The health check response has only root-level keys, so there is no need
-        to worry about nested keys in either :py:attr:`check_for` or in the
-        filter_path.
+        Returns:
+            str: Comma-separated keys from check_for for filtering.
 
-        :getter: Returns the proper filter_path
-        :type: str
+        Example:
+            >>> health = Health(client, check_for={"status": "green"})
+            >>> health.filter_path
+            'status'
         """
         return ','.join(self.check_for.keys())
 
     @begin_end()
     def check(self) -> bool:
-        """
-        This function calls :py:meth:`cluster.health()
-        <elasticsearch.client.ClusterClient.health>` and, based on the value
-        returned by :py:func:`healthchk_result <es_wait.utils.healthchk_result>`,
-        will return ``True`` or ``False``.
+        """Check if the health condition is met.
 
-        For 'cluster_routing', 'indices' is ignored, and all indices ('*') are
-        checked.
+        Calls the cluster.health API and validates the response against check_for.
 
-        :returns: True if the condition in 'check_for' is met, False otherwise.
-        :rtype: bool
+        Returns:
+            bool: True if conditions are met, False otherwise.
+
+        Raises:
+            :py:class:`elasticsearch8.exceptions.TransportError`: If API call fails.
+
+        Example:
+            >>> health = Health(client, check_type="status")
+            >>> health.check()  # Returns True if cluster is green
+            False
         """
         self.too_many_exceptions()
         target = self.indices if self.check_type != 'cluster_routing' else '*'
@@ -125,7 +174,7 @@ class Health(Waiter):
                 retval = False
         except TransportError as err:
             self.exceptions_raised += 1
-            self.add_exception(err)  # Append the error to self._exceptions
+            self.add_exception(err)
             logger.error(f'Error checking health: {prettystr(err)}')
             retval = False
         debug.lv5(f'Return value = {retval}')

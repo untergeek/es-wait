@@ -1,9 +1,9 @@
-"""ILM Phase and Step Check Waiters"""
+"""ILM Phase and Step Check Waiters."""
 
-# pylint: disable=R0902,R0913,R0917,W0718
+# pylint: disable=R0913,R0917
 import typing as t
 import logging
-from dotmap import DotMap  # type: ignore
+from dotmap import DotMap
 from elasticsearch8.exceptions import NotFoundError
 from ._base import Waiter
 from .debug import debug, begin_end
@@ -18,7 +18,30 @@ logger = logging.getLogger(__name__)
 
 
 class IndexLifecycle(Waiter):
-    """ILM Step and Phase Parent Class"""
+    """Base class for ILM phase and step waiters.
+
+    Provides common functionality for waiting on ILM operations.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 9.0).
+        timeout (float): Max wait time in seconds (default: 630.0).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+        name (str): Index name (default: '').
+
+    Attributes:
+        name (str): Index name.
+        waitstr (str): Description of the wait operation.
+
+    Raises:
+        ValueError: If `name` is empty.
+
+    Example:
+        >>> from elasticsearch8 import Elasticsearch
+        >>> client = Elasticsearch()
+        >>> ilm = IndexLifecycle(client, name="my-index")
+        >>> ilm.wait()
+    """
 
     def __init__(
         self,
@@ -28,33 +51,65 @@ class IndexLifecycle(Waiter):
         max_exceptions: int = ILM.get('max_exceptions', 10),
         name: str = '',
     ) -> None:
-        """
-        Initializes the IndexLifecycle waiter.
+        """Initialize the IndexLifecycle waiter.
 
-        'pause' will check every 15 seconds by default
-        'timeout' is 10 minutes, 30 seconds, which is a reflection of Elasticsearch's
-        default ILM polling interval of 10 minutes.
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 9.0).
+            timeout (float): Max wait time in seconds (default: 630.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+            name (str): Index name (default: '').
+
+        Raises:
+            ValueError: If `name` is empty.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> ilm = IndexLifecycle(client, name="my-index")
+            >>> ilm.name
+            'my-index'
         """
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        #: The index name
         self.name = name
         self._ensure_not_none('name')
 
+    def __repr__(self) -> str:
+        """Return a string representation of the IndexLifecycle instance.
+
+        Returns:
+            str: String representation including name, waitstr, and pause.
+
+        Example:
+            >>> ilm = IndexLifecycle(client, name="my-index", pause=9.0)
+            >>> repr(ilm)
+            'IndexLifecycle(name="my-index", waitstr="for Waiter class to initialize",
+            pause=9.0)'
+        """
+        parts = [
+            f"name={self.name!r}",
+            f"waitstr={self.waitstr!r}",
+            f"pause={self.pause}",
+        ]
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
     @property
     def explain(self) -> str:
-        """
-        :getter: Returns the current ilm explain data for the index
-        :type: str
+        """Get the current ILM explain data for the index.
+
+        Returns:
+            str: ILM explain data as a DotMap object.
         """
         return DotMap(self.get_explain_data())
 
     @property
     def phase_complete(self) -> bool:
-        """
-        :getter: Returns True if both action and step for the phase are complete
-        :type: bool
+        """Check if both action and step for the phase are complete.
+
+        Returns:
+            bool: True if both action and step are complete, False otherwise.
         """
         return bool(
             self.explain.action == 'complete' and self.explain.step == 'complete'
@@ -62,10 +117,23 @@ class IndexLifecycle(Waiter):
 
     @begin_end()
     def get_explain_data(self) -> t.Union[t.Dict, None]:
-        """
-        This method calls :py:meth:`ilm.explain_lifecycle()
-        <elasticsearch.client.IlmClient.explain_lifecycle>` with :py:attr:`name` and
-        returns the resulting response.
+        """Get ILM explain data for the index.
+
+        Calls the ilm.explain_lifecycle API to retrieve ILM status.
+
+        Returns:
+            Union[Dict, None]: ILM explain data or None if not found.
+
+        Raises:
+            :py:class:`elasticsearch8.exceptions.NotFoundError`: If index not found.
+            :py:class:`es_wait.exceptions.IlmWaitError`: If ILM data cannot be
+                retrieved.
+
+        Example:
+            >>> ilm = IndexLifecycle(client, name="my-index")
+            >>> data = ilm.get_explain_data()
+            >>> isinstance(data, dict)
+            True
         """
         try:
             debug.lv4('TRY: Getting ILM explain data...')
@@ -80,21 +148,7 @@ class IndexLifecycle(Waiter):
             debug.lv3('Exiting method, raising exception')
             debug.lv5(f'Exception = {prettystr(exc)}')
             logger.error(msg)
-            raise exc  # re-raise the original. Just wanted to log here.
-        # Proposed possible retry solution to name changes
-        # Use an on_name_change callout to handle the name change
-        # def get_explain_data(self, on_name_change: t.Optional[t.Callable] = None):
-        #     try:
-        #         resp = dict(self.client.ilm.explain_lifecycle(index=self.name))
-        #     except NotFoundError as exc:
-        #         if on_name_change:
-        #             new_name = on_name_change(self.name)
-        #             if new_name:
-        #                 self.name = new_name
-        #                 return self.get_explain_data()
-        #         raise exc
-        # The problem is that there's no way to communicate the name change
-        # back to the caller. It's a bit of a mess.
+            raise exc
         except Exception as err:
             msg = f'Unable to get ILM information for index {self.name}'
             logger.critical(msg)
@@ -105,14 +159,35 @@ class IndexLifecycle(Waiter):
 
 
 class IlmPhase(IndexLifecycle):
-    """
-    ILM Phase class (child of class IndexLifecycle)
+    """Wait for an ILM phase transition to complete.
 
-    It should be noted that the default ILM polling interval in Elasticsearch is 10
-    minutes. Setting pause and timeout accordingly is a good idea.
+    Polls ILM explain data to check if the index has reached the target phase.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 9.0).
+        timeout (float): Max wait time in seconds (default: 630.0).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+        name (str): Index name (default: '').
+        phase (str): Target ILM phase (default: '').
+
+    Attributes:
+        name (str): Index name.
+        phase (str): Target ILM phase.
+        stuck_count (int): Number of times phase was stuck.
+        advanced (bool): If True, phase was advanced manually.
+        waitstr (str): Description of the wait operation.
+
+    Raises:
+        ValueError: If `name` or `phase` is empty.
+
+    Example:
+        >>> from elasticsearch8 import Elasticsearch
+        >>> client = Elasticsearch()
+        >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+        >>> ilm.wait()
     """
 
-    # pylint: disable=R0913,R0917
     def __init__(
         self,
         client: 'Elasticsearch',
@@ -122,6 +197,26 @@ class IlmPhase(IndexLifecycle):
         name: str = '',
         phase: str = '',
     ) -> None:
+        """Initialize the IlmPhase waiter.
+
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 9.0).
+            timeout (float): Max wait time in seconds (default: 630.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+            name (str): Index name (default: '').
+            phase (str): Target ILM phase (default: '').
+
+        Raises:
+            ValueError: If `name` or `phase` is empty.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.phase
+            'warm'
+        """
         super().__init__(
             client=client,
             pause=pause,
@@ -130,7 +225,6 @@ class IlmPhase(IndexLifecycle):
             name=name,
         )
         debug.lv2('Initializing IlmPhase object...')
-        #: The target ILM phase
         self.phase = phase
         self._ensure_not_none('phase')
         self.waitstr = (
@@ -141,11 +235,36 @@ class IlmPhase(IndexLifecycle):
         self.advanced = False
         debug.lv3('IlmPhase object initialized')
 
+    def __repr__(self) -> str:
+        """Return a string representation of the IlmPhase instance.
+
+        Returns:
+            str: String representation including name, phase, stuck_count,
+                advanced, waitstr, and pause.
+
+        Example:
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm", pause=9.0)
+            >>> repr(ilm)
+            'IlmPhase(name="my-index", phase="warm", stuck_count=0, advanced=False,
+            waitstr="for \"my-index\" to complete ILM transition to phase \"warm\"",
+            pause=9.0)'
+        """
+        parts = [
+            f"name={self.name!r}",
+            f"phase={self.phase!r}",
+            f"stuck_count={self.stuck_count}",
+            f"advanced={self.advanced}",
+            f"waitstr={self.waitstr!r}",
+            f"pause={self.pause}",
+        ]
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
     @property
     def phase_gte(self) -> bool:
-        """
-        :getter: Returns True if the current phase meets or exceeds the target phase
-        :type: bool
+        """Check if current phase meets or exceeds the target phase.
+
+        Returns:
+            bool: True if current phase is at or beyond target, False otherwise.
         """
         return bool(
             self.phase_by_num(self.explain.phase) >= self.phase_by_num(self.phase)
@@ -153,9 +272,10 @@ class IlmPhase(IndexLifecycle):
 
     @property
     def phase_lt(self) -> bool:
-        """
-        :getter: Returns True if the current phase is less the target phase
-        :type: bool
+        """Check if current phase is less than the target phase.
+
+        Returns:
+            bool: True if current phase is before target, False otherwise.
         """
         return bool(
             self.phase_by_num(self.explain.phase) < self.phase_by_num(self.phase)
@@ -163,8 +283,15 @@ class IlmPhase(IndexLifecycle):
 
     @begin_end()
     def has_explain(self) -> bool:
-        """Check if the explain data is present
-        :returns: boolean of "The explain data is present"
+        """Check if ILM explain data is present.
+
+        Returns:
+            bool: True if explain data is present, False otherwise.
+
+        Example:
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.has_explain()  # Checks for explain data
+            True
         """
         if not self.explain:
             logger.warning('No ILM Explain data found.')
@@ -184,8 +311,15 @@ class IlmPhase(IndexLifecycle):
 
     @begin_end()
     def reached_phase(self) -> bool:
-        """Check if the phase is what we expect
-        :returns: boolean of "The phase reached its target"
+        """Check if the target phase has been reached.
+
+        Returns:
+            bool: True if target phase is reached, False otherwise.
+
+        Example:
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.reached_phase()  # Checks if phase is warm or beyond
+            False
         """
         if self.phase_gte and self.phase == 'new':
             debug.lv2('ILM Phase: new is complete')
@@ -207,15 +341,29 @@ class IlmPhase(IndexLifecycle):
             debug.lv5('Value = False')
             return False
         debug.lv5('Return value = True')
-        return True  # The phase is now gte to the target phase
+        return True
 
     @begin_end()
     def phase_stuck(self, max_stuck_count: int = 3) -> bool:
-        """Check if the phase is stuck
-        :param int max_stuck_count: The maximum number of times the phase can be stuck
-            before returning raising an exception. Default is 3.
-        :type max_stuck_count: int
-        :returns: boolean of "The phase is stuck"
+        """Check if the ILM phase is stuck.
+
+        Triggers an ILM phase advance if stuck for too long.
+
+        Args:
+            max_stuck_count (int): Max times phase can be stuck (default: 3).
+
+        Returns:
+            bool: True if phase is stuck, False otherwise.
+
+        Raises:
+            :py:class:`es_wait.exceptions.IlmWaitError`: If phase remains stuck
+                after advancing.
+
+        Example:
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.stuck_count = 3
+            >>> ilm.phase_stuck(max_stuck_count=3)  # Triggers phase advance
+            True
         """
         if self.stuck_count >= max_stuck_count:
             if self.advanced:
@@ -233,45 +381,45 @@ class IlmPhase(IndexLifecycle):
                 f'phase advance to {self.phase}'
             )
             logger.warning(msg)
-            # Trigger advance to self.phase
             curr = {'phase': self.explain.phase, 'action': 'complete'}
-            curr['name'] = 'complete'  # So odd that it's step in the output
+            curr['name'] = 'complete'
             target = {'phase': self.phase, 'action': 'complete'}
-            target['name'] = 'complete'  # But it's name in the API
+            target['name'] = 'complete'
             self.client.ilm.move_to_step(
                 index=self.name, current_step=curr, next_step=target
             )
             self.advanced = True
-            self.stuck_count = 0  # Reset the stuck count
-            self.exceptions_raised = 0  # Reset the exceptions_raised count
+            self.stuck_count = 0
+            self.exceptions_raised = 0
             debug.lv3('Exiting method, returning value')
             debug.lv5('Value = True')
-            return True  # The phase was stuck
+            return True
         debug.lv5('Return value = False')
-        return False  # The phase was not stuck
+        return False
 
     @begin_end()
     def check(self, max_stuck_count: int = 3) -> bool:
-        """Check the ILM phase transition
+        """Check if the ILM phase transition is complete.
 
-        Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
-        phase change completion.  It will return ``True`` if the expected phase and the
-        actually collected phase match. If phase is ``new``, it will return ``True`` if
-        the collected phase is ``new`` or higher (``hot``, ``warm``, ``cold``,
-        ``frozen``, ``delete``).
+        Polls ILM explain data to verify if the target phase is reached.
 
-        Upstream callers need to try/catch any of :py:exc:`KeyError` (index name
-        changed), :py:exc:`NotFoundError <elasticsearch.exceptions.NotFoundError>`, and
-        :py:exc:`~.es_wait.exceptions.IlmWaitError`.
+        Args:
+            max_stuck_count (int): Max times phase can be stuck (default: 3).
 
-        We cannot not be responsible for retrying with a changed name as it's not in
-        our scope as a "waiter"
+        Returns:
+            bool: True if target phase is reached, False otherwise.
 
-        :param int max_stuck_count: The maximum number of times the phase can be stuck
-            before returning raising an exception. Default is 3.
-        :type max_stuck_count: int
-        :returns: Returns if the check was complete
-        :rtype: bool
+        Raises:
+            :py:class:`es_wait.exceptions.IlmWaitError`: If phase remains stuck.
+            :py:class:`elasticsearch8.exceptions.NotFoundError`: If index not found.
+            KeyError: If explain data lacks required keys.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.check()  # Returns True if phase is warm or beyond
+            False
         """
         self.too_many_exceptions()
         if not self.has_explain():
@@ -279,7 +427,6 @@ class IlmPhase(IndexLifecycle):
         logger.info(f'Current ILM Phase: {self.explain.phase}')
         debug.lv2(f'Expecting ILM Phase: {self.phase}')
         if self.phase_stuck(max_stuck_count):
-            # The phase was stuck, and we triggered an ILM advance
             return False
         debug.lv2('ILM Phase not stuck.')
         retval = self.reached_phase()
@@ -288,7 +435,19 @@ class IlmPhase(IndexLifecycle):
 
     @begin_end()
     def phase_by_num(self, phase: str) -> int:
-        """Map a phase name to a phase number"""
+        """Map a phase name to a phase number.
+
+        Args:
+            phase (str): ILM phase name.
+
+        Returns:
+            int: Phase number (0 for undefined).
+
+        Example:
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.phase_by_num("warm")
+            3
+        """
         _ = {
             'undef': 0,
             'new': 1,
@@ -298,16 +457,27 @@ class IlmPhase(IndexLifecycle):
             'frozen': 5,
             'delete': 6,
         }
-        retval = _.get(phase, 0)  # Default to 0/undef if not found
+        retval = _.get(phase, 0)
         debug.lv5(f'Return value = {retval}')
         return retval
 
     @begin_end()
     def phase_by_name(self, num: int) -> str:
-        """Map a phase number to a phase name"""
+        """Map a phase number to a phase name.
+
+        Args:
+            num (int): Phase number.
+
+        Returns:
+            str: Phase name ('undef' for undefined).
+
+        Example:
+            >>> ilm = IlmPhase(client, name="my-index", phase="warm")
+            >>> ilm.phase_by_name(3)
+            'warm'
+        """
         debug.lv2('Starting method...')
         _ = {
-            # 0: 'undef',
             1: 'new',
             2: 'hot',
             3: 'warm',
@@ -315,17 +485,35 @@ class IlmPhase(IndexLifecycle):
             5: 'frozen',
             6: 'delete',
         }
-        retval = _.get(num, 'undef')  # Default to undef if not found
+        retval = _.get(num, 'undef')
         debug.lv5(f'Return value = {retval}')
         return retval
 
 
 class IlmStep(IndexLifecycle):
-    """
-    ILM Step class (child of class IndexLifecycle)
+    """Wait for the current ILM step to complete.
 
-    It should be noted that the default ILM polling interval in Elasticsearch is 10
-    minutes. Setting pause and timeout accordingly is a good idea.
+    Polls ILM explain data to check if the current step and action are complete.
+
+    Args:
+        client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+        pause (float): Seconds between checks (default: 9.0).
+        timeout (float): Max wait time in seconds (default: 630.0).
+        max_exceptions (int): Max allowed exceptions (default: 10).
+        name (str): Index name (default: '').
+
+    Attributes:
+        name (str): Index name.
+        waitstr (str): Description of the wait operation.
+
+    Raises:
+        ValueError: If `name` is empty.
+
+    Example:
+        >>> from elasticsearch8 import Elasticsearch
+        >>> client = Elasticsearch()
+        >>> ilm = IlmStep(client, name="my-index")
+        >>> ilm.wait()
     """
 
     def __init__(
@@ -336,6 +524,25 @@ class IlmStep(IndexLifecycle):
         max_exceptions: int = ILM.get('max_exceptions', 10),
         name: str = '',
     ) -> None:
+        """Initialize the IlmStep waiter.
+
+        Args:
+            client (:py:class:`elasticsearch8.Elasticsearch`): Elasticsearch client.
+            pause (float): Seconds between checks (default: 9.0).
+            timeout (float): Max wait time in seconds (default: 630.0).
+            max_exceptions (int): Max allowed exceptions (default: 10).
+            name (str): Index name (default: '').
+
+        Raises:
+            ValueError: If `name` is empty.
+
+        Example:
+            >>> from elasticsearch8 import Elasticsearch
+            >>> client = Elasticsearch()
+            >>> ilm = IlmStep(client, name="my-index")
+            >>> ilm.name
+            'my-index'
+        """
         super().__init__(
             client=client,
             pause=pause,
@@ -347,22 +554,41 @@ class IlmStep(IndexLifecycle):
         self.waitstr = f'for "{self.name}" to complete the current ILM step'
         self.announce()
 
+    def __repr__(self) -> str:
+        """Return a string representation of the IlmStep instance.
+
+        Returns:
+            str: String representation including name, waitstr, and pause.
+
+        Example:
+            >>> ilm = IlmStep(client, name="my-index", pause=9.0)
+            >>> repr(ilm)
+            'IlmStep(name="my-index", waitstr="for \"my-index\" to complete the
+            current ILM step", pause=9.0)'
+        """
+        parts = [
+            f"name={self.name!r}",
+            f"waitstr={self.waitstr!r}",
+            f"pause={self.pause}",
+        ]
+        return f"{self.__class__.__name__}({', '.join(parts)})"
+
     @begin_end()
     def check(self) -> bool:
-        """
-        Collect ILM explain data from :py:meth:`get_explain_data()`, and check for ILM
-        step completion.  It will return ``True`` if the step and action values are
-        both ``complete``
+        """Check if the current ILM step is complete.
 
-        Upstream callers need to try/catch any of :py:exc:`KeyError` (index name
-        changed), :py:exc:`NotFoundError <elasticsearch.exceptions.NotFoundError>`, and
-        :py:exc:`~.es_wait.exceptions.IlmWaitError`.
+        Verifies if the step and action are complete or if the index exists.
 
-        We cannot not be responsible for retrying with a changed name as it's not in
-        our scope as a "waiter"
+        Returns:
+            bool: True if step is complete, False otherwise.
 
-        :getter: Returns if the check was complete
-        :type: bool
+        Raises:
+            :py:class:`es_wait.exceptions.IlmWaitError`: If index is not found.
+
+        Example:
+            >>> ilm = IlmStep(client, name="my-index")
+            >>> ilm.check()  # Returns True if step is complete
+            False
         """
         self.too_many_exceptions()
         if not self.client.indices.exists(index=self.name):
