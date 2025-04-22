@@ -20,4 +20,4 @@ Optional dependencies
 ---------------------
 
 - pytest (for running tests)
-- sphinx, sphinx-rtd-theme (for building documentation)
+- furo (for building documentation)

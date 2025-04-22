@@ -1,54 +1,55 @@
-"""Sphinx Documentation Configuration"""
+"""Sphinx configuration for es-wait documentation.
 
-# pylint: disable=C0103,C0114,E0401,W0611,W0622
+Configures Sphinx to generate documentation for the es-wait package,
+using autodoc, Napoleon, doctest, viewcode, and intersphinx extensions.
+Imports metadata (__version__, __author__, __copyright__) from
+es-wait, leveraging module installation for ReadTheDocs. Sets up
+GitHub integration for "Edit Source" links and supports Python 3.8-3.13.
 
-# Configuration file for the Sphinx documentation builder.
-#
-# This file only contains a selection of the most common options. For a full
-# list see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
+Attributes:
+    project: Project name ("es-wait"). (str)
+    author: Author name from es-wait.__author__. (str)
+    version: Major.minor version (e.g., "0.15"). (str)
+    release: Full version (e.g., "0.15.1"). (str)
+    html_theme: Theme for HTML output, defaults to "sphinx_rtd_theme". (str)
 
-import sys
-import os
-from datetime import datetime
-import sphinx_rtd_theme
+Examples:
+    >>> project
+    'es-wait'
+    >>> author
+    'Aaron Mildenstein'
+    >>> version
+    '0.15'
+    >>> 'autodoc' in [ext.split('.')[-1] for ext in extensions]
+    True
+"""
 
-COPYRIGHT_YEARS = f'2024-{datetime.now().year}'
+# pylint: disable=C0103,E0401,W0622
 
-# Extract the version from the __init__.py file
-
-path = "../src/es_wait/__init__.py"
-myinit = os.path.join(os.path.dirname(os.path.abspath(__file__)), path)
-
-ver = ""
-with open(myinit, "r", encoding="utf-8") as file:
-    lines = file.readlines()
-
-for line in lines:
-    if line.startswith("__version__"):
-        ver = line.split('"')[1]
-
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath("../"))
+# -- Imports and setup -----------------------------------------------------
+from es_wait import __author__, __copyright__, __version__
 
 # -- Project information -----------------------------------------------------
 
 project = "es-wait"
-author = "Aaron Mildenstein"
-copyright = f"{COPYRIGHT_YEARS}, {author}"
-release = ver
+github_user = "untergeek"
+github_repo = "es-wait"
+github_branch = "main"
+author = __author__
+copyright = __copyright__
+release = __version__
 version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
+    "sphinx_rtd_theme",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.doctest",
+    "sphinx.ext.githubpages",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
 ]
 napoleon_google_docstring = True
 napoleon_numpy_docstring = False
@@ -60,24 +61,31 @@ master_doc = "index"
 
 # -- Options for HTML output -------------------------------------------------
 
-pygments_style = "sphinx"
+html_theme = "furo"
 
-on_rtd = os.environ.get("READTHEDOCS", None) == "True"
-
-if not on_rtd:  # only import and set the theme if we're building docs locally
-    html_theme = "sphinx_rtd_theme"
+# Add "Edit Source" links into the template
+html_context = {
+    "display_github": True,
+    "github_user": f"{github_user}",
+    "github_repo": f"{github_repo}",
+    "github_version": f"{github_branch}",
+    "conf_py_path": "/docs/",  # Path in the checkout to the docs root
+}
 
 # -- Autodoc configuration ---------------------------------------------------
 
-
 autoclass_content = "both"
-autodoc_member_order = "bysource"
+autodoc_class_signature = "separated"
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
     "show-inheritance": True,
 }
+autodoc_member_order = "bysource"
+autodoc_typehints = "description"
 
+
+# -- Intersphinx configuration -----------------------------------------------
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3.12", None),

@@ -10,7 +10,7 @@ from .defaults import HealthCheckDict
 if t.TYPE_CHECKING:
     from elastic_transport import ObjectApiResponse
 
-logger = logging.getLogger('es_wait.utils')
+logger = logging.getLogger("es_wait.utils")
 
 
 @begin_end()
@@ -33,10 +33,10 @@ def diagnosis_generator(ind: str, data: t.Sequence) -> t.Generator:
          'INDICATOR: test: DIAGNOSIS #0: ACTION: fix',
          'INDICATOR: test: DIAGNOSIS #0: AFFECTED_RESOURCES: []']
     """
-    diag_keys = ['cause', 'action', 'affected_resources']
+    diag_keys = ["cause", "action", "affected_resources"]
     for idx, diag in enumerate(data):
         for key in diag_keys:
-            yield f'INDICATOR: {ind}: DIAGNOSIS #{idx}: {key.upper()}: {diag[key]}'
+            yield f"INDICATOR: {ind}: DIAGNOSIS #{idx}: {key.upper()}: {diag[key]}"
 
 
 @begin_end()
@@ -59,10 +59,10 @@ def impact_generator(ind: str, data: t.Sequence) -> t.Generator:
          'INDICATOR: test: IMPACT AREA #0: DESCRIPTION: issue',
          'INDICATOR: test: IMPACT AREA #0: IMPACT_AREAS: []']
     """
-    impact_keys = ['severity', 'description', 'impact_areas']
+    impact_keys = ["severity", "description", "impact_areas"]
     for idx, impact in enumerate(data):
         for key in impact_keys:
-            yield f'INDICATOR: {ind}: IMPACT AREA #{idx}: {key.upper()}: {impact[key]}'
+            yield f"INDICATOR: {ind}: IMPACT AREA #{idx}: {key.upper()}: {impact[key]}"
 
 
 @begin_end()
@@ -86,14 +86,14 @@ def indicator_generator(ind: str, data: t.Dict) -> t.Generator:
         ['INDICATOR: test: SYMPTOM: issue',
          'INDICATOR: test: DETAILS: details']
     """
-    ind_keys = ['symptom', 'details', 'impacts', 'diagnosis']
-    gen_map = {'diagnosis': diagnosis_generator, 'impacts': impact_generator}
+    ind_keys = ["symptom", "details", "impacts", "diagnosis"]
+    gen_map = {"diagnosis": diagnosis_generator, "impacts": impact_generator}
     for key in ind_keys:
         if key in gen_map:
             func = gen_map[key]
             yield from func(ind, data[key])
         else:
-            yield f'INDICATOR: {ind}: {key.upper()}: {data[key]}'
+            yield f"INDICATOR: {ind}: {key.upper()}: {data[key]}"
 
 
 @begin_end()
@@ -128,16 +128,16 @@ def healthchk_result(data: "ObjectApiResponse", check_for: HealthCheckDict) -> b
         if output[key] != value:
             msg = (
                 f'NO MATCH: Value for key "{value}", health check output: '
-                f'{output[key]}'
+                f"{output[key]}"
             )
             check = False
         else:
             msg = (
                 f'MATCH: Value for key "{value}", health check output: '
-                f'{output[key]}'
+                f"{output[key]}"
             )
         debug.lv3(msg)
-    debug.lv5(f'Return value = {check}')
+    debug.lv5(f"Return value = {check}")
     return check
 
 
@@ -157,12 +157,12 @@ def health_report(data: "ObjectApiResponse") -> None:
     """
     rpt = dict(data)
     try:
-        debug.lv4('TRY: Looping over health report data')
-        if rpt['status'] != 'green':
+        debug.lv4("TRY: Looping over health report data")
+        if rpt["status"] != "green":
             logger.info(f"HEALTH REPORT: STATUS: {rpt['status'].upper()}")
-            loop_health_indicators(rpt['indicators'])
+            loop_health_indicators(rpt["indicators"])
     except KeyError as err:
-        logger.error(f'Health report data: {rpt}, error: {prettystr(err)}')
+        logger.error(f"Health report data: {rpt}, error: {prettystr(err)}")
 
 
 @begin_end()
@@ -181,9 +181,9 @@ def loop_health_indicators(inds: t.Dict) -> None:
     """
     for ind in inds:
         if isinstance(ind, str):
-            if inds[ind]['status'] != 'green':
+            if inds[ind]["status"] != "green":
                 for line in indicator_generator(ind, inds[ind]):
-                    logger.info(f'HEALTH REPORT: {line}')
+                    logger.info(f"HEALTH REPORT: {line}")
 
 
 @begin_end(begin=5, end=5)
@@ -207,18 +207,18 @@ def prettystr(*args, **kwargs) -> str:
         }
     """
     defaults = [
-        ('indent', 2),
-        ('width', 80),
-        ('depth', None),
-        ('compact', False),
-        ('sort_dicts', False),
+        ("indent", 2),
+        ("width", 80),
+        ("depth", None),
+        ("compact", False),
+        ("sort_dicts", False),
     ]
     if version_info[0] >= 3 and version_info[1] >= 10:
-        defaults.append(('underscore_numbers', False))
+        defaults.append(("underscore_numbers", False))
     kw = {}
     for tup in defaults:
         key, default = tup
         kw[key] = kwargs[key] if key in kwargs else default
     retval = f"\n{pformat(*args, **kw)}"
-    debug.lv5(f'Return value = {retval}')
+    debug.lv5(f"Return value = {retval}")
     return retval

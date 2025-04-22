@@ -126,7 +126,7 @@ class EsWaitFatal(EsWaitException):
         """
         parts = [repr(self.message)]
         if self.elapsed > 0:
-            parts.append(f'elapsed={self.elapsed}')
+            parts.append(f"elapsed={self.elapsed}")
         if self.errors:
             parts.append(f"errors={self.errors!r}")
         return f'{self.__class__.__name__}({", ".join(parts)})'
@@ -188,9 +188,9 @@ class EsWaitTimeout(Exception):
         """
         parts = [repr(self.message)]
         if self.elapsed > 0.0:
-            parts.append(f'elapsed={self.elapsed}')
+            parts.append(f"elapsed={self.elapsed}")
         if self.timeout > 0.0:
-            parts.append(f'timeout={self.timeout}')
+            parts.append(f"timeout={self.timeout}")
         return f'{self.__class__.__name__}({", ".join(parts)})'
 
 
@@ -251,7 +251,7 @@ class ExceptionCount(EsWaitException):
         """
         parts = [repr(self.message)]
         if self.count > 0:
-            parts.append(f'count={self.count}')
+            parts.append(f"count={self.count}")
         if self.errors:
             parts.append(f"errors={self.errors!r}")
         return f'{self.__class__.__name__}({", ".join(parts)})'

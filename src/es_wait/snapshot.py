@@ -45,12 +45,12 @@ class Snapshot(Waiter):
 
     def __init__(
         self,
-        client: 'Elasticsearch',
-        pause: float = SNAPSHOT.get('pause', 9.0),
-        timeout: float = SNAPSHOT.get('timeout', 7200.0),
-        max_exceptions: int = SNAPSHOT.get('max_exceptions', 10),
-        snapshot: str = '',
-        repository: str = '',
+        client: "Elasticsearch",
+        pause: float = SNAPSHOT.get("pause", 9.0),
+        timeout: float = SNAPSHOT.get("timeout", 7200.0),
+        max_exceptions: int = SNAPSHOT.get("max_exceptions", 10),
+        snapshot: str = "",
+        repository: str = "",
     ) -> None:
         """Initialize the Snapshot waiter.
 
@@ -75,14 +75,14 @@ class Snapshot(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        debug.lv2('Initializing Snapshot object...')
+        debug.lv2("Initializing Snapshot object...")
         self.snapshot = snapshot
         self.repository = repository
-        self._ensure_not_none('snapshot')
-        self._ensure_not_none('repository')
+        self._ensure_not_none("snapshot")
+        self._ensure_not_none("repository")
         self.waitstr = f'for snapshot "{self.snapshot}" to complete'
         self.announce()
-        debug.lv3('Snapshot object initialized')
+        debug.lv3("Snapshot object initialized")
 
     def __repr__(self) -> str:
         """Return a string representation of the Snapshot instance.
@@ -126,13 +126,13 @@ class Snapshot(Waiter):
         """
         result = {}
         try:
-            debug.lv4('TRY: snapshot.get()')
+            debug.lv4("TRY: snapshot.get()")
             result = dict(
                 self.client.snapshot.get(
                     repository=self.repository, snapshot=self.snapshot
                 )
             )
-            debug.lv5(f'snapshot.get result: {result}')
+            debug.lv5(f"snapshot.get result: {result}")
         except Exception as err:
             raise ValueError(
                 f'Unable to obtain information for snapshot "{self.snapshot}" in '
@@ -160,21 +160,21 @@ class Snapshot(Waiter):
         """
         self.too_many_exceptions()
         try:
-            debug.lv4('TRY: Getting snapshot state')
-            state = self.snapstate['snapshots'][0]['state']
-            debug.lv5(f'snapshot state: {state}')
+            debug.lv4("TRY: Getting snapshot state")
+            state = self.snapstate["snapshots"][0]["state"]
+            debug.lv5(f"snapshot state: {state}")
             retval = True
         except ValueError as err:
             self.exceptions_raised += 1
             self.add_exception(err)
-            state = 'UNDEFINED'
+            state = "UNDEFINED"
             logger.error(err)
             retval = False
-        if state == 'IN_PROGRESS':
+        if state == "IN_PROGRESS":
             retval = False
         if retval:
             self.log_completion(state)
-        debug.lv5(f'Return value = {retval}')
+        debug.lv5(f"Return value = {retval}")
         return retval
 
     @begin_end()
@@ -192,7 +192,7 @@ class Snapshot(Waiter):
             >>> snap.log_completion("SUCCESS")
             ... # Logs: Snapshot my-snapshot completed with state: SUCCESS
         """
-        msg = f'Snapshot {self.snapshot} completed with state: {state}'
-        statemap = {'SUCCESS': logger.info, 'FAILED': logger.error}
+        msg = f"Snapshot {self.snapshot} completed with state: {state}"
+        statemap = {"SUCCESS": logger.info, "FAILED": logger.error}
         logfunc = statemap.get(state, logger.warning)
         logfunc(msg)
