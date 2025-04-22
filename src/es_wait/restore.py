@@ -44,10 +44,10 @@ class Restore(Waiter):
 
     def __init__(
         self,
-        client: 'Elasticsearch',
-        pause: float = RESTORE.get('pause', 9.0),
-        timeout: float = RESTORE.get('timeout', 7200.0),
-        max_exceptions: int = RESTORE.get('max_exceptions', 10),
+        client: "Elasticsearch",
+        pause: float = RESTORE.get("pause", 9.0),
+        timeout: float = RESTORE.get("timeout", 7200.0),
+        max_exceptions: int = RESTORE.get("max_exceptions", 10),
         index_list: t.Optional[t.Sequence[str]] = None,
     ) -> None:
         """Initialize the Restore waiter.
@@ -72,12 +72,12 @@ class Restore(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        debug.lv2('Initializing Restore object...')
+        debug.lv2("Initializing Restore object...")
         self.index_list = index_list
-        self._ensure_not_none('index_list')
-        self.waitstr = 'for indices in index_list to be restored from snapshot'
+        self._ensure_not_none("index_list")
+        self.waitstr = "for indices in index_list to be restored from snapshot"
         self.announce()
-        debug.lv3('Restore object initialized')
+        debug.lv3("Restore object initialized")
 
     def __repr__(self) -> str:
         """Return a string representation of the Restore instance.
@@ -123,10 +123,10 @@ class Restore(Waiter):
                 else:
                     chunk += "," + index
             else:
-                chunks.append(chunk.split(','))
+                chunks.append(chunk.split(","))
                 chunk = index
-        chunks.append(chunk.split(','))
-        debug.lv5(f'Return value = {chunks}')
+        chunks.append(chunk.split(","))
+        debug.lv5(f"Return value = {chunks}")
         return chunks
 
     @begin_end()
@@ -149,29 +149,29 @@ class Restore(Waiter):
         response = {}
         for chunk in self.index_list_chunks:
             try:
-                debug.lv4('Calling get_recovery')
+                debug.lv4("Calling get_recovery")
                 chunk_response = self.get_recovery(chunk)
-                debug.lv5(f'get_recovery response: {chunk_response}')
+                debug.lv5(f"get_recovery response: {chunk_response}")
             except ValueError as err:
                 self.exceptions_raised += 1
                 self.add_exception(err)
                 logger.error(err)
                 return False
             if not chunk_response:
-                debug.lv1('_recovery API returned an empty response. Trying again.')
+                debug.lv1("_recovery API returned an empty response. Trying again.")
                 self.exceptions_raised += 1
-                debug.lv5('Return value = False')
+                debug.lv5("Return value = False")
                 return False
             response.update(chunk_response)
-        debug.lv3(f'Provided indices: {prettystr(self.index_list)}')
-        debug.lv3(f'Found indices: {prettystr(list(response.keys()))}')
+        debug.lv3(f"Provided indices: {prettystr(self.index_list)}")
+        debug.lv3(f"Found indices: {prettystr(list(response.keys()))}")
         for index, data in response.items():
-            for shard in data['shards']:
-                stage = shard['stage']
-                if stage != 'DONE':
-                    debug.lv1(f'Index {index} is still in stage {stage}')
+            for shard in data["shards"]:
+                stage = shard["stage"]
+                if stage != "DONE":
+                    debug.lv1(f"Index {index} is still in stage {stage}")
                     return False
-        debug.lv5('Return value = True')
+        debug.lv5("Return value = True")
         return True
 
     @begin_end()
@@ -197,23 +197,23 @@ class Restore(Waiter):
         """
         chunk_response = {}
         try:
-            debug.lv4('TRY: Getting index recovery information')
+            debug.lv4("TRY: Getting index recovery information")
             chunk_response = dict(self.client.indices.recovery(index=chunk, human=True))
-            debug.lv5(f'indices.recovery response: {chunk_response}')
+            debug.lv5(f"indices.recovery response: {chunk_response}")
         except TransportError as err:
             msg = (
-                f'Restore.get_recovery: Unable to obtain recovery information for '
-                f'specified indices {chunk}. Elasticsearch TransportError: '
-                f'{prettystr(err)}'
+                f"Restore.get_recovery: Unable to obtain recovery information for "
+                f"specified indices {chunk}. Elasticsearch TransportError: "
+                f"{prettystr(err)}"
             )
             logger.warning(msg)
             self.add_exception(err)
         except Exception as err:
             msg = (
-                f'Restore.get_recovery: Unable to obtain recovery information for '
-                f'specified indices {chunk}. Error: {prettystr(err)}'
+                f"Restore.get_recovery: Unable to obtain recovery information for "
+                f"specified indices {chunk}. Error: {prettystr(err)}"
             )
             logger.warning(msg)
             self.add_exception(err)
-        debug.lv5(f'Return value = {chunk_response}')
+        debug.lv5(f"Return value = {chunk_response}")
         return chunk_response

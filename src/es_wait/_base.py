@@ -20,7 +20,7 @@ from .utils import health_report, prettystr
 if t.TYPE_CHECKING:
     from elasticsearch8 import Elasticsearch
 
-logger = logging.getLogger('es_wait.Waiter')
+logger = logging.getLogger("es_wait.Waiter")
 
 
 class TimeTracker:
@@ -47,10 +47,10 @@ class TimeTracker:
             >>> tracker.log_frequency
             5
         """
-        debug.lv2('Initializing TimeTracker object...')
+        debug.lv2("Initializing TimeTracker object...")
         self.log_frequency = log_frequency
         self.start_time = self.now
-        debug.lv3('TimeTracker object initialized')
+        debug.lv3("TimeTracker object initialized")
 
     @property
     def elapsed(self) -> float:
@@ -114,10 +114,10 @@ class Waiter:
 
     def __init__(
         self,
-        client: 'Elasticsearch',
-        pause: float = BASE.get('pause', 9.0),
-        timeout: float = BASE.get('timeout', 15.0),
-        max_exceptions: int = BASE.get('max_exceptions', 10),
+        client: "Elasticsearch",
+        pause: float = BASE.get("pause", 9.0),
+        timeout: float = BASE.get("timeout", 15.0),
+        max_exceptions: int = BASE.get("max_exceptions", 10),
     ) -> None:
         """Initialize the Waiter.
 
@@ -134,16 +134,16 @@ class Waiter:
             >>> waiter.pause
             5.0
         """
-        debug.lv2('Initializing Waiter object...')
+        debug.lv2("Initializing Waiter object...")
         self.client = client
         self.pause = pause
         self.timeout = timeout
         self.max_exceptions = max_exceptions
         self._exceptions = []
         self.exceptions_raised = 0
-        self.waitstr = 'for Waiter class to initialize'
+        self.waitstr = "for Waiter class to initialize"
         self.do_health_report = False
-        debug.lv3('Waiter object initialized')
+        debug.lv3("Waiter object initialized")
 
     @property
     def exception_count_msg(self) -> str:
@@ -159,8 +159,8 @@ class Waiter:
             '2 exceptions raised out of 10 allowed'
         """
         return (
-            f'{self.exceptions_raised} exceptions raised out of '
-            f'{self.max_exceptions} allowed'
+            f"{self.exceptions_raised} exceptions raised out of "
+            f"{self.max_exceptions} allowed"
         )
 
     @property
@@ -189,7 +189,7 @@ class Waiter:
             >>> waiter.waitstr = "test wait"
             >>> waiter.announce()  # Logs: "The wait test wait is starting..."
         """
-        debug.lv1(f'The wait {self.waitstr} is starting...')
+        debug.lv1(f"The wait {self.waitstr} is starting...")
 
     def check(self) -> bool:
         """Check if the task is complete (to be overridden by subclasses).
@@ -217,7 +217,7 @@ class Waiter:
             ValueError: Keyword arg name cannot be None
         """
         if getattr(self, name) is None:
-            msg = f'Keyword arg {name} cannot be None'
+            msg = f"Keyword arg {name} cannot be None"
             logger.critical(msg)
             raise ValueError(msg)
 
@@ -237,10 +237,10 @@ class Waiter:
             ExceptionCount: Check for Waiter class to initialize has failed...
         """
         if self.exceptions_raised >= self.max_exceptions:
-            msg = f'Check {self.waitstr} has failed, {self.exception_count_msg}'
-            debug.lv3('Exiting method, raising exception')
+            msg = f"Check {self.waitstr} has failed, {self.exception_count_msg}"
+            debug.lv3("Exiting method, raising exception")
             logger.error(msg)
-            debug.lv5('Exception = ExceptionCount')
+            debug.lv5("Exception = ExceptionCount")
             raise ExceptionCount(msg, self.exceptions_raised, tuple(self.exceptions))
 
     @begin_end()
@@ -269,59 +269,59 @@ class Waiter:
         """
         tracker = TimeTracker(log_frequency=frequency)
         success = False
-        debug.lv2(f'Only logging every {frequency} seconds')
+        debug.lv2(f"Only logging every {frequency} seconds")
         while True:
             try:
-                debug.lv4('TRY: Checking for completion')
+                debug.lv4("TRY: Checking for completion")
                 response = self.check()
-                debug.lv5(f'check() response: {response}')
+                debug.lv5(f"check() response: {response}")
             except ExceptionCount as err:
-                debug.lv3('Exiting method, raising exception')
-                logger.critical(f'{self.exception_count_msg} from {prettystr(err)}')
+                debug.lv3("Exiting method, raising exception")
+                logger.critical(f"{self.exception_count_msg} from {prettystr(err)}")
                 raise EsWaitFatal(
                     self.exception_count_msg, tracker.elapsed, tuple(self.exceptions)
                 ) from err
             except (EsWaitException, IlmWaitError) as err:
-                msg = f'An error occurred: {prettystr(err)}'
-                debug.lv3('Exiting method, raising exception')
+                msg = f"An error occurred: {prettystr(err)}"
+                debug.lv3("Exiting method, raising exception")
                 logger.critical(msg)
                 raise EsWaitFatal(msg, tracker.elapsed, tuple(self.exceptions)) from err
             if response:
-                debug.lv2(f'The wait {self.waitstr} is over.')
-                total = f'{tracker.elapsed:.2f}'
-                debug.lv3(f'Elapsed time: {total} seconds')
+                debug.lv2(f"The wait {self.waitstr} is over.")
+                total = f"{tracker.elapsed:.2f}"
+                debug.lv3(f"Elapsed time: {total} seconds")
                 success = True
                 break
             if (self.timeout != -1) and (tracker.elapsed >= self.timeout):
                 msg = (
-                    f'The {self.waitstr} did not complete within {self.timeout} '
-                    f'seconds.'
+                    f"The {self.waitstr} did not complete within {self.timeout} "
+                    f"seconds."
                 )
                 logger.error(msg)
                 break
             if tracker.should_log:
                 msg = (
-                    f'The wait {self.waitstr} is ongoing. {tracker.elapsed} '
-                    f'total seconds have elapsed. Pausing {self.pause} seconds '
-                    f'between checks.'
+                    f"The wait {self.waitstr} is ongoing. {tracker.elapsed} "
+                    f"total seconds have elapsed. Pausing {self.pause} seconds "
+                    f"between checks."
                 )
                 debug.lv2(msg)
             sleep(self.pause)
 
         if not success:
             msg = (
-                f'The wait {self.waitstr} failed to complete in the timeout '
-                f'period of {self.timeout} seconds'
+                f"The wait {self.waitstr} failed to complete in the timeout "
+                f"period of {self.timeout} seconds"
             )
             logger.error(msg)
             timeout = EsWaitTimeout(msg, tracker.elapsed, self.timeout)
             if self.do_health_report:
                 try:
-                    debug.lv4('TRY: Getting health report')
+                    debug.lv4("TRY: Getting health report")
                     health_report(self.client.health_report())
                 except TransportError as exc:
-                    fail = f'Health report failed: {exc}'
+                    fail = f"Health report failed: {exc}"
                     logger.error(fail)
-            debug.lv3('Exiting method, raising exception')
+            debug.lv3("Exiting method, raising exception")
             debug.lv5(f'Exception = "{prettystr(timeout)}"')
             raise timeout

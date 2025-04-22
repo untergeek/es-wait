@@ -52,12 +52,12 @@ class Task(Waiter):
 
     def __init__(
         self,
-        client: 'Elasticsearch',
-        pause: float = TASK.get('pause', 9.0),
-        timeout: float = TASK.get('timeout', 7200.0),
-        max_exceptions: int = TASK.get('max_exceptions', 10),
-        action: t.Literal['forcemerge', 'reindex', 'update_by_query'] = 'reindex',
-        task_id: str = '',
+        client: "Elasticsearch",
+        pause: float = TASK.get("pause", 9.0),
+        timeout: float = TASK.get("timeout", 7200.0),
+        max_exceptions: int = TASK.get("max_exceptions", 10),
+        action: t.Literal["forcemerge", "reindex", "update_by_query"] = "reindex",
+        task_id: str = "",
     ) -> None:
         """Initialize the Task waiter.
 
@@ -83,20 +83,20 @@ class Task(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        debug.lv2('Initializing Task object...')
+        debug.lv2("Initializing Task object...")
         self.action = action
-        if action not in ['forcemerge', 'reindex', 'update_by_query']:
-            msg = 'The action must be one of forcemerge, reindex, or update_by_query'
+        if action not in ["forcemerge", "reindex", "update_by_query"]:
+            msg = "The action must be one of forcemerge, reindex, or update_by_query"
             logger.error(msg)
             raise ValueError(msg)
         self.task_id = task_id
-        self._ensure_not_none('task_id')
+        self._ensure_not_none("task_id")
         self.task_data = None
         self.task = None
         self.failure_count = 0
         self.waitstr = f'for the "{self.action}" task to complete'
         self.announce()
-        debug.lv3('Task object initialized')
+        debug.lv3("Task object initialized")
 
     def __repr__(self) -> str:
         """Return a string representation of the Task instance.
@@ -135,12 +135,12 @@ class Task(Waiter):
             False
         """
         running_time = 0.000000001 * self.task.running_time_in_nanos
-        debug.lv3(f'Running time: {running_time} seconds')
+        debug.lv3(f"Running time: {running_time} seconds")
         if self.task_data.completed:
             completion_time = running_time * 1000
-            completion_time += self.task['start_time_in_millis']
+            completion_time += self.task["start_time_in_millis"]
             time_string = strftime(
-                '%Y-%m-%dT%H:%M:%S', localtime(completion_time / 1000)
+                "%Y-%m-%dT%H:%M:%S", localtime(completion_time / 1000)
             )
             msg = (
                 f'Task "{self.task.description}" with task_id '
@@ -150,14 +150,14 @@ class Task(Waiter):
             retval = True
         else:
             _ = self.task_data.toDict()
-            debug.lv5(f'Full Task Data: {prettystr(_)}')
+            debug.lv5(f"Full Task Data: {prettystr(_)}")
             msg = (
                 f'Task "{self.task.description}" with task_id '
                 f'"{self.task_id}" has been running for {running_time} seconds'
             )
             debug.lv3(msg)
             retval = False
-        debug.lv5(f'Return value = {retval}')
+        debug.lv5(f"Return value = {retval}")
         return retval
 
     @begin_end()
@@ -180,31 +180,31 @@ class Task(Waiter):
         self.too_many_exceptions()
         response = {}
         try:
-            debug.lv4('TRY: Getting task information')
+            debug.lv4("TRY: Getting task information")
             warnings.filterwarnings("ignore", category=GeneralAvailabilityWarning)
             response = dict(self.client.tasks.get(task_id=self.task_id))
-            debug.lv5(f'tasks.get response: {response}')
+            debug.lv5(f"tasks.get response: {response}")
         except Exception as err:
             self.exceptions_raised += 1
             self.add_exception(err)
             msg = (
                 f'Unable to obtain task information for task_id "{self.task_id}". '
-                f'Response: {prettystr(response)} -- '
-                f'Exception: {prettystr(err)}'
+                f"Response: {prettystr(response)} -- "
+                f"Exception: {prettystr(err)}"
             )
             logger.error(msg)
             return False
         self.task_data = DotMap(response)
         self.task = self.task_data.task
         try:
-            debug.lv4('TRY: Checking for reindex task')
+            debug.lv4("TRY: Checking for reindex task")
             self.reindex_check()
         except ValueError as err:
             self.exceptions_raised += 1
             self.add_exception(err)
-            logger.error(f'Error in reindex_check: {prettystr(err)}')
+            logger.error(f"Error in reindex_check: {prettystr(err)}")
             return False
-        debug.lv5(f'Return value = {self.task_complete}')
+        debug.lv5(f"Return value = {self.task_complete}")
         return self.task_complete
 
     @begin_end()
@@ -220,19 +220,19 @@ class Task(Waiter):
             >>> task = Task(client, action="reindex", task_id="123")
             >>> task.reindex_check()  # Raises ValueError if failures exist
         """
-        if self.task.action == 'indices:data/write/reindex':
+        if self.task.action == "indices:data/write/reindex":
             debug.lv5("It's a REINDEX task")
-            debug.lv5(f'TASK_DATA: {prettystr(self.task_data.toDict())}')
+            debug.lv5(f"TASK_DATA: {prettystr(self.task_data.toDict())}")
             debug.lv5(
-                f'TASK_DATA keys: ' f'{prettystr(list(self.task_data.toDict().keys()))}'
+                f"TASK_DATA keys: " f"{prettystr(list(self.task_data.toDict().keys()))}"
             )
             if self.task_data.response.failures:
                 if len(self.task_data.response.failures) > 0:
                     _ = self.task_data.response.failures
                     msg = (
-                        f'Failures found in the {self.action} response: '
-                        f'{prettystr(_)}'
+                        f"Failures found in the {self.action} response: "
+                        f"{prettystr(_)}"
                     )
                     logger.error(msg)
-                    debug.lv3('Exiting method, raising ValueError')
+                    debug.lv3("Exiting method, raising ValueError")
                     raise ValueError(msg)

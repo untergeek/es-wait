@@ -14,13 +14,13 @@ if t.TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-STATUS_CHK: HealthCheckDict = {'status': 'green'}
-RELO_CHK: HealthCheckDict = {'relocating_shards': 0}
+STATUS_CHK: HealthCheckDict = {"status": "green"}
+RELO_CHK: HealthCheckDict = {"relocating_shards": 0}
 WAITSTR_MAP = {
-    'status': 'for cluster health to show green status',
-    'relocation': 'for cluster health to show zero relocating shards',
-    'cluster_routing': (
-        'for cluster health to show zero relocating shards across all indices'
+    "status": "for cluster health to show green status",
+    "relocation": "for cluster health to show zero relocating shards",
+    "cluster_routing": (
+        "for cluster health to show zero relocating shards across all indices"
     ),
 }
 
@@ -59,11 +59,11 @@ class Health(Waiter):
 
     def __init__(
         self,
-        client: 'Elasticsearch',
-        pause: float = HEALTH.get('pause', 1.5),
-        timeout: float = HEALTH.get('timeout', 15.0),
-        max_exceptions: int = HEALTH.get('max_exceptions', 10),
-        check_type: HealthTypes = 'status',
+        client: "Elasticsearch",
+        pause: float = HEALTH.get("pause", 1.5),
+        timeout: float = HEALTH.get("timeout", 15.0),
+        max_exceptions: int = HEALTH.get("max_exceptions", 10),
+        check_type: HealthTypes = "status",
         indices: t.Optional[t.Union[str, t.List[str]]] = None,
         check_for: t.Optional[HealthCheckDict] = None,
     ) -> None:
@@ -90,20 +90,20 @@ class Health(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        debug.lv2('Initializing Health object...')
+        debug.lv2("Initializing Health object...")
         self.check_type = check_type
-        if self.check_type == 'cluster_routing' and indices is not None:
+        if self.check_type == "cluster_routing" and indices is not None:
             logger.warning(
                 "For 'cluster_routing', 'indices' is ignored. Checking all indices."
             )
         self.do_health_report = True
         self.indices = (
-            ','.join(indices) if isinstance(indices, list) else indices or '*'
+            ",".join(indices) if isinstance(indices, list) else indices or "*"
         )
-        self.check_for = check_for or HEALTH['types'][check_type]
+        self.check_for = check_for or HEALTH["types"][check_type]
         self.waitstr = WAITSTR_MAP[check_type]
         self.announce()
-        debug.lv3('Health object initialized')
+        debug.lv3("Health object initialized")
 
     def __repr__(self) -> str:
         """Return a string representation of the Health instance.
@@ -138,7 +138,7 @@ class Health(Waiter):
             >>> health.filter_path
             'status'
         """
-        return ','.join(self.check_for.keys())
+        return ",".join(self.check_for.keys())
 
     @begin_end()
     def check(self) -> bool:
@@ -158,15 +158,15 @@ class Health(Waiter):
             False
         """
         self.too_many_exceptions()
-        target = self.indices if self.check_type != 'cluster_routing' else '*'
-        if self.check_type == 'cluster_routing':
-            logger.info('Doing cluster_routing health check. Checking all indices.')
+        target = self.indices if self.check_type != "cluster_routing" else "*"
+        if self.check_type == "cluster_routing":
+            logger.info("Doing cluster_routing health check. Checking all indices.")
         try:
-            debug.lv4('TRY: Getting health check response')
+            debug.lv4("TRY: Getting health check response")
             response = self.client.cluster.health(
                 index=target, filter_path=self.filter_path
             )
-            debug.lv5(f'cluster.health response: {response}')
+            debug.lv5(f"cluster.health response: {response}")
             result = healthchk_result(response, self.check_for)
             if result:
                 retval = result
@@ -175,7 +175,7 @@ class Health(Waiter):
         except TransportError as err:
             self.exceptions_raised += 1
             self.add_exception(err)
-            logger.error(f'Error checking health: {prettystr(err)}')
+            logger.error(f"Error checking health: {prettystr(err)}")
             retval = False
-        debug.lv5(f'Return value = {retval}')
+        debug.lv5(f"Return value = {retval}")
         return retval

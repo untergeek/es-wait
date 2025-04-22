@@ -45,12 +45,12 @@ class Exists(Waiter):
 
     def __init__(
         self,
-        client: 'Elasticsearch',
-        pause: float = EXISTS.get('pause', 1.5),
-        timeout: float = EXISTS.get('timeout', 10.0),
-        max_exceptions: int = EXISTS.get('max_exceptions', 10),
-        name: str = '',
-        kind: ExistsTypes = 'index',
+        client: "Elasticsearch",
+        pause: float = EXISTS.get("pause", 1.5),
+        timeout: float = EXISTS.get("timeout", 10.0),
+        max_exceptions: int = EXISTS.get("max_exceptions", 10),
+        name: str = "",
+        kind: ExistsTypes = "index",
     ) -> None:
         """Initialize the Exists waiter.
 
@@ -76,17 +76,17 @@ class Exists(Waiter):
         super().__init__(
             client=client, pause=pause, timeout=timeout, max_exceptions=max_exceptions
         )
-        debug.lv2('Initializing Exists object...')
+        debug.lv2("Initializing Exists object...")
         self.name = name
-        if kind not in EXISTS['types']:
+        if kind not in EXISTS["types"]:
             msg = f'kind must be one of {", ".join(EXISTS["types"])}'
             logger.error(msg)
             raise ValueError(msg)
         self.kind = kind
-        self._ensure_not_none('name')
+        self._ensure_not_none("name")
         self.waitstr = f'for {kind} "{name}" to exist'
         self.announce()
-        debug.lv3('Exists object initialized')
+        debug.lv3("Exists object initialized")
 
     def __repr__(self) -> str:
         """Return a string representation of the Exists instance.
@@ -128,7 +128,7 @@ class Exists(Waiter):
         func, kwargs = self.func_map()
         self.too_many_exceptions()
         try:
-            debug.lv4('TRY: Getting boolean value from function call')
+            debug.lv4("TRY: Getting boolean value from function call")
             retval = bool(func(**kwargs))
         except TransportError as err:
             self.exceptions_raised += 1
@@ -136,7 +136,7 @@ class Exists(Waiter):
             msg = f'Error checking for {self.kind} "{self.name}": {err}'
             logger.error(msg)
             retval = False
-        debug.lv5(f'Return value = {retval}')
+        debug.lv5(f"Return value = {retval}")
         return retval
 
     @begin_end()
@@ -155,17 +155,17 @@ class Exists(Waiter):
             True
         """
         _ = {
-            'index': (self.client.indices.exists, {'index': self.name}),
-            'data_stream': (self.client.indices.exists, {'index': self.name}),
-            'index_template': (
+            "index": (self.client.indices.exists, {"index": self.name}),
+            "data_stream": (self.client.indices.exists, {"index": self.name}),
+            "index_template": (
                 self.client.indices.exists_index_template,
-                {'name': self.name},
+                {"name": self.name},
             ),
-            'component_template': (
+            "component_template": (
                 self.client.cluster.exists_component_template,
-                {'name': self.name},
+                {"name": self.name},
             ),
         }
         retval = _[self.kind]
-        debug.lv5(f'Return value = {retval}')
+        debug.lv5(f"Return value = {retval}")
         return retval

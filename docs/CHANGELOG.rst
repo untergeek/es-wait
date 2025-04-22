@@ -6,6 +6,30 @@ All notable changes to ``es-wait`` will be documented in this file.
 The format is based on `Keep a Changelog <https://keepachangelog.com/en/1.0.0/>`_,
 and this project adheres to `Semantic Versioning <https://semver.org/spec/v2.0.0.html>`_.
 
+[0.15.1] - 2025-04-21
+---------------------
+
+Changed
+~~~~~~~
+
+- Dependency version bumps:
+  - ``tiered_debug==1.3.0``
+  - ``es_client>=8.18.2`` for tests only
+  - ``furo>=2024.1.0`` for documentation only
+- Updated _all_ files to use double quotes for strings, as per PEP 8 style guide, using Black formatter.
+- Updated ``__init__.py`` to include additional metadata (``__author__``, ``__copyright__``, ``__license__``, ``__status__``, ``__description__``, ``__url__``, ``__email__``, ``__maintainer__``, ``__maintainer_email__``, ``__keywords__``, ``__classifiers__``) and dynamic copyright year handling.
+- Updated ``docs/conf.py`` to use the Furo theme, add GitHub integration for "Edit Source" links, and enhance autodoc configuration with separated class signatures and typehint descriptions.
+- Updated ``docs/requirements.txt`` to include ``furo>=2024.1.0`` for documentation generation.
+- Split out the classes and modules from ``docs/api.rst`` into separate files for better organization and readability.
+
+Impact
+~~~~~~
+
+- Improved project metadata consistency with comprehensive package information.
+- Enhanced documentation with modern theme, better navigation, and GitHub integration.
+- Ensured compatibility with updated dependencies.
+- Improve documentation generation with Furo theme (I like the look better).
+
 [0.15.0] - 2025-04-17
 ---------------------
 
